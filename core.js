@@ -1,0 +1,316 @@
+'use strict';
+/* =========================================================
+   Kraftbuch – Kern: Helfer, Speicher, Overlays, Picker
+   ========================================================= */
+const APP_VERSION = '1.0.0';
+
+/* ---------- Helfer ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const clone = o => JSON.parse(JSON.stringify(o));
+const num = v => (v === null || v === undefined || v === '') ? NaN : parseFloat(String(v).replace(',', '.'));
+const f0 = n => Math.round(n || 0).toLocaleString('de-DE');
+const f1 = n => (Math.round((n || 0) * 10) / 10).toLocaleString('de-DE');
+const f2 = n => (Math.round((n || 0) * 100) / 100).toLocaleString('de-DE');
+const norm = s => String(s).toLowerCase().replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/ß/g, 'ss').normalize('NFD').replace(/[̀-ͯ]/g, '');
+const slug = s => norm(s).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const debounce = (fn, ms = 300) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+
+/* ---------- Datum ---------- */
+const pad = n => String(n).padStart(2, '0');
+const keyOf = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const fromKey = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
+const todayKey = () => keyOf(new Date());
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const weekStart = d => addDays(new Date(d.getFullYear(), d.getMonth(), d.getDate()), -((d.getDay() + 6) % 7));
+const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+const WDL = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+const WDS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+const MON = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+const MONS = ['Jan.', 'Feb.', 'März', 'Apr.', 'Mai', 'Juni', 'Juli', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.'];
+function isoWeek(d) {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - day);
+  const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  return Math.ceil(((t - y0) / 86400000 + 1) / 7);
+}
+function rangeLabel(mon) {
+  const end = addDays(mon, 6);
+  if (mon.getMonth() === end.getMonth()) return `${mon.getDate()}.–${end.getDate()}. ${MON[end.getMonth()]} ${end.getFullYear()}`;
+  return `${mon.getDate()}. ${MONS[mon.getMonth()]} – ${end.getDate()}. ${MONS[end.getMonth()]} ${end.getFullYear()}`;
+}
+const longDate = k => { const d = fromKey(k); return `${WDL[d.getDay()]}, ${d.getDate()}. ${MON[d.getMonth()]}`; };
+const shortDate = k => { const d = fromKey(k); return `${WDS[d.getDay()]}, ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.`; };
+const numDate = k => { const d = fromKey(k); return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`; };
+function relLabel(k) {
+  const diff = Math.round((fromKey(k) - fromKey(todayKey())) / 86400000);
+  return { 0: 'Heute', '-1': 'Gestern', 1: 'Morgen' }[diff] || '';
+}
+const fmtDur = ms => { const m = Math.round(ms / 60000); return m >= 60 ? `${Math.floor(m / 60)}:${pad(m % 60)} Std.` : `${m} Min.`; };
+const fmtClock = s => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${pad(s % 60)}`; };
+const timeOf = ts => { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+
+/* ---------- Icons ---------- */
+const sv = p => `<svg viewBox="0 0 24 24">${p}</svg>`;
+const I = {
+  back: sv('<path d="M15 18l-6-6 6-6"/>'),
+  down: sv('<path d="M6 9l6 6 6-6"/>'),
+  chevL: sv('<path d="M15 18l-6-6 6-6"/>'),
+  chevR: sv('<path d="M9 18l6-6-6-6"/>'),
+  gear: sv('<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>'),
+  plus: sv('<path d="M12 5v14M5 12h14"/>'),
+  minus: sv('<path d="M5 12h14"/>'),
+  x: sv('<path d="M6 6l12 12M18 6L6 18"/>'),
+  check: sv('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
+  dots: sv('<circle cx="5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="19" cy="12" r="1.3" fill="currentColor"/>'),
+  camera: sv('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>'),
+  image: sv('<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>'),
+  share: sv('<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/>'),
+  copy: sv('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h10"/>'),
+  search: sv('<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>'),
+  trash: sv('<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>'),
+  sun: sv('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
+  plate: sv('<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/>'),
+  moon: sv('<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>'),
+  apple: sv('<path d="M12 7.5c-1.6-1.2-5-1.4-6.4 1.6S5 16 7.5 19c1.2 1.4 2.8 1.4 4.5.6 1.7.8 3.3.8 4.5-.6 2.5-3 3.4-7-2-9.9-1.6-.9-3.2-.8-2.5-.6z"/><path d="M12 7.5c0-2 1-3.5 3-4.2"/>'),
+  book: sv('<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/>'),
+  pot: sv('<path d="M4 10h16v4a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6z"/><path d="M2 10h20M9 6.5c0-1.2 1-1.3 1-2.5M14 6.5c0-1.2 1-1.3 1-2.5"/>'),
+  leaf: sv('<path d="M5 19c0-8.5 5.5-14 15-14 0 9.5-5.5 15-14 15"/><path d="M5 19l7-7"/>'),
+  download: sv('<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>'),
+  upload: sv('<path d="M12 16V5M7 10l5-5 5 5M5 20h14"/>'),
+  save: sv('<path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7M8 20v-6h8v6"/>'),
+  dumbbell: sv('<path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/>'),
+  barbell: sv('<path d="M2 12h20M5 7v10M8 8.5v7M19 7v10M16 8.5v7"/>'),
+  machine: sv('<rect x="4" y="3" width="6" height="18" rx="1.5"/><path d="M7 7h0M7 10h0M7 13h0M10 8h8M18 5v10M15 15h6"/>'),
+  cable: sv('<path d="M5 3v18M19 3v18M5 4h14M12 4v8"/><path d="M9 15h6l-3-3z"/>'),
+  body: sv('<circle cx="12" cy="4.5" r="2"/><path d="M12 7v7M7 10l5-2 5 2M9 21l3-7 3 7"/>'),
+  smith: sv('<path d="M5 3v18M19 3v18M3 11h18M8 8v6M16 8v6"/>'),
+  other: sv('<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>'),
+  timer: sv('<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/>'),
+  swap: sv('<path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/>'),
+  play: sv('<path d="M7 5l12 7-12 7z"/>'),
+  chart: sv('<path d="M4 20V4M4 20h16M7 15l4-5 3 3 5-7"/>'),
+  list: sv('<path d="M8 6h12M8 12h12M8 18h12M4 6h0M4 12h0M4 18h0"/>'),
+  scale: sv('<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 9.5a4 4 0 0 1 6 0l-2 2.5"/>'),
+  fire: sv('<path d="M12 21c4 0 7-2.6 7-6.6 0-3.1-1.8-5.1-3.3-6.6.1 1.8-.6 3-1.7 3.4C14.3 7.6 12.4 4.8 9.6 3c.4 3.5-1.6 5.4-3 7.1C5.6 11.4 5 12.7 5 14.4 5 18.4 8 21 12 21z"/>'),
+  edit: sv('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
+  info: sv('<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/>'),
+  up: sv('<path d="M6 15l6-6 6 6"/>'),
+};
+
+/* ---------- Speicher (IndexedDB) ---------- */
+const DB = {
+  db: null,
+  open() {
+    return new Promise((res, rej) => {
+      const r = indexedDB.open('kraftbuch', 1);
+      r.onupgradeneeded = () => { r.result.createObjectStore('kv'); r.result.createObjectStore('photos'); };
+      r.onsuccess = () => { this.db = r.result; res(); };
+      r.onerror = () => rej(r.error);
+    });
+  },
+  tx(store, mode, fn) {
+    return new Promise((res, rej) => {
+      const t = this.db.transaction(store, mode);
+      const req = fn(t.objectStore(store));
+      t.oncomplete = () => res(req && req.result);
+      t.onerror = () => rej(t.error);
+      t.onabort = () => rej(t.error);
+    });
+  },
+  get(k, st = 'kv') { return this.tx(st, 'readonly', s => s.get(k)); },
+  set(k, v, st = 'kv') { return this.tx(st, 'readwrite', s => s.put(v, k)); },
+  del(k, st = 'kv') { return this.tx(st, 'readwrite', s => s.delete(k)); },
+  clear(st) { return this.tx(st, 'readwrite', s => s.clear()); },
+  entries(st = 'kv', db = this.db) {
+    return new Promise((res, rej) => {
+      const t = db.transaction(st, 'readonly'); const s = t.objectStore(st);
+      const kr = s.getAllKeys(), vr = s.getAll();
+      t.oncomplete = () => res(kr.result.map((k, i) => [k, vr.result[i]]));
+      t.onerror = () => rej(t.error);
+    });
+  },
+};
+
+/* ---------- Zustand ---------- */
+const DEFAULT_GOALS = {
+  train: { kcal: 2800, p: 160, c: 360, f: 80 },
+  rest: { kcal: 2500, p: 160, c: 285, f: 80 },
+};
+const S = {
+  // Essen
+  days: {}, dishes: [], customFoods: [], overrides: {}, hidden: [], usage: {}, recent: [],
+  // Gym
+  exercises: [], plans: [], workouts: [], active: null, apMap: {},
+  settings: {
+    goals: clone(DEFAULT_GOALS),
+    gym: { rir: true, warmups: true, wakeLock: true, vibrate: true, sound: false, activePlan: null },
+  },
+  // UI
+  sel: todayKey(), view: 'training', foodFilter: 'all', foodQuery: '', dishQuery: '', exQuery: '',
+};
+const persist = (k, v) => DB.set(k, clone(v)).catch(e => toast('Speichern fehlgeschlagen: ' + e.message));
+const saveDay = k => persist('day:' + k, S.days[k]);
+const saveDishes = () => persist('dishes', S.dishes);
+const saveFoods = () => { persist('customFoods', S.customFoods); persist('overrides', S.overrides); persist('hidden', S.hidden); };
+const saveUsage = () => { persist('usage', S.usage); persist('recent', S.recent); };
+const saveSettings = () => persist('settings', S.settings);
+const saveExercises = debounce(() => persist('exercises', S.exercises), 250);
+const saveExercisesNow = () => persist('exercises', S.exercises);
+const savePlans = () => persist('plans', S.plans);
+const saveWorkout = w => persist('w:' + w.id, w);
+const delWorkout = w => DB.del('w:' + w.id).catch(() => { });
+const saveActive = () => S.active ? persist('active', S.active) : DB.del('active').catch(() => { });
+const saveApMap = () => persist('apMap', S.apMap);
+
+/* ---------- Overlays mit Zurück-Taste ---------- */
+const stack = [];
+let popWaiters = [];
+function pushOverlay(el) {
+  el.style.zIndex = 50 + stack.length * 2;
+  stack.push(el);
+  document.body.appendChild(el);
+  el.getBoundingClientRect();
+  requestAnimationFrame(() => el.classList.add('open'));
+  history.pushState({ ov: stack.length }, '');
+}
+function removeOverlay(el) {
+  el.classList.remove('open');
+  el.dispatchEvent(new Event('closed'));
+  setTimeout(() => el.remove(), 280);
+}
+function closeOverlays(n = 1) {
+  n = Math.min(n, stack.length);
+  if (n <= 0) return Promise.resolve();
+  return new Promise(r => { popWaiters.push(r); history.go(-n); });
+}
+const closeAll = () => closeOverlays(stack.length);
+window.addEventListener('popstate', e => {
+  const target = (e.state && e.state.ov) || 0;
+  while (stack.length > target) removeOverlay(stack.pop());
+  const w = popWaiters; popWaiters = []; w.forEach(f => f());
+  refreshAll();
+});
+function openSheet({ title, full = false, cls = '' }) {
+  const el = document.createElement('div');
+  el.className = 'ov sheet' + (full ? ' full' : '') + (cls ? ' ' + cls : '');
+  el.innerHTML = `<div class="scrim"></div><div class="sheet-b"><div class="grab"></div><div class="sheet-h"><h2>${esc(title)}</h2><button class="icon-btn" data-close aria-label="Schließen">${I.x}</button></div><div class="sheet-c"></div></div>`;
+  $('.scrim', el).onclick = () => closeOverlays(1);
+  $('[data-close]', el).onclick = () => closeOverlays(1);
+  el.content = $('.sheet-c', el);
+  el.setTitle = t => { $('.sheet-h h2', el).textContent = t; };
+  pushOverlay(el);
+  return el;
+}
+function openPanel(cls = '') {
+  const el = document.createElement('div');
+  el.className = 'ov panel ' + cls;
+  el.innerHTML = `<div class="panel-b"><div class="panel-in"></div></div>`;
+  el.content = $('.panel-in', el);
+  pushOverlay(el);
+  return el;
+}
+function dialog({ title, text = '', buttons, input = null }) {
+  return new Promise(resolve => {
+    let result = null;
+    const el = document.createElement('div');
+    el.className = 'ov dlg';
+    el.innerHTML = `<div class="scrim"></div><div class="dlg-b"><h3>${esc(title)}</h3>${text ? `<p>${esc(text)}</p>` : ''}${input ? `<input value="${esc(input.value || '')}" placeholder="${esc(input.placeholder || '')}" ${input.mode ? `inputmode="${input.mode}"` : ''}>` : ''}<div class="dlg-btns">${buttons.map((b, i) => `<button class="btn ${b.cls || ''}" data-i="${i}">${esc(b.label)}</button>`).join('')}<button class="btn ghost" data-i="-1">Abbrechen</button></div></div>`;
+    $('.scrim', el).onclick = () => closeOverlays(1);
+    $$('[data-i]', el).forEach(b => b.onclick = () => {
+      const i = +b.dataset.i;
+      if (i >= 0) {
+        result = buttons[i].value;
+        if (input) { const v = $('input', el).value.trim(); if (!v && !input.allowEmpty) { $('input', el).focus(); return; } result = { value: result, text: v }; }
+      }
+      closeOverlays(1);
+    });
+    el.addEventListener('closed', () => resolve(result));
+    pushOverlay(el);
+    if (input) setTimeout(() => { const i = $('input', el); i.focus(); i.select(); }, 250);
+  });
+}
+const confirmDlg = (title, text, label = 'Löschen', cls = 'danger') => dialog({ title, text, buttons: [{ label, value: true, cls }] });
+function menu(title, items) {
+  // items: [{label, value, icon, cls}]
+  return new Promise(resolve => {
+    let result = null;
+    const sh = openSheet({ title });
+    sh.content.innerHTML = `<div class="list menu">${items.map((it, i) => `<button class="row ${it.cls || ''}" data-i="${i}">${it.icon || ''}<span class="row-main"><b>${esc(it.label)}</b>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span></button>`).join('')}</div>`;
+    sh.content.addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (!b) return; result = items[+b.dataset.i].value; closeOverlays(1); });
+    sh.addEventListener('closed', () => resolve(result));
+  });
+}
+
+let toastT;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+/* ---------- Zahlen-Picker ---------- */
+function pickNumber({ title, value, options, unit = '', decimals = true, sub = null, cols = 5, extra = null }) {
+  // options: [{v, label, sub}] ; returns number or null
+  return new Promise(resolve => {
+    let result = null;
+    const sh = openSheet({ title });
+    sh.content.innerHTML = `
+      <div class="pick-in"><div class="inp-g inp-big"><input inputmode="${decimals ? 'decimal' : 'numeric'}" value="${isNaN(num(value)) ? '' : f2(value)}" placeholder="0"><em>${esc(unit)}</em></div><button class="btn primary" data-ok>OK</button></div>
+      ${sub ? `<p class="muted pick-sub">${sub}</p>` : ''}
+      <div class="pick-grid" style="grid-template-columns:repeat(${cols},1fr)">${options.map(o => `<button class="pick ${Math.abs(o.v - num(value)) < 1e-6 ? 'on' : ''}" data-v="${o.v}"><b>${esc(o.label ?? f2(o.v))}</b>${o.sub ? `<small>${esc(o.sub)}</small>` : ''}</button>`).join('')}</div>
+      ${extra ? `<div class="pick-extra">${extra.map((x, i) => `<button class="btn ghost" data-x="${i}">${esc(x.label)}</button>`).join('')}</div>` : ''}`;
+    const inp = $('input', sh.content);
+    const ok = () => { const v = num(inp.value); if (isNaN(v)) { inp.focus(); return; } result = v; closeOverlays(1); };
+    $('[data-ok]', sh.content).onclick = ok;
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') ok(); });
+    inp.addEventListener('focus', () => inp.select());
+    sh.content.addEventListener('click', e => {
+      const b = e.target.closest('[data-v]'); if (b) { result = +b.dataset.v; closeOverlays(1); return; }
+      const x = e.target.closest('[data-x]'); if (x) { result = extra[+x.dataset.x].value; closeOverlays(1); }
+    });
+    sh.addEventListener('closed', () => resolve(result));
+    const on = $('.pick.on', sh.content); if (on) setTimeout(() => on.scrollIntoView({ block: 'center' }), 280);
+  });
+}
+
+/* ---------- Fotos ---------- */
+const photoUrls = {};
+async function photoUrl(id) {
+  if (!id) return '';
+  if (photoUrls[id]) return photoUrls[id];
+  const b = await DB.get(id, 'photos'); if (!b) return '';
+  return (photoUrls[id] = URL.createObjectURL(b));
+}
+function fillThumbs(root) {
+  $$('img[data-pid]', root).forEach(async img => { const u = await photoUrl(img.dataset.pid); if (u) img.src = u; });
+}
+function compressImage(file, max = 1280, q = 0.78) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      c.toBlob(b => b ? res(b) : rej(new Error('blob')), 'image/jpeg', q);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('img')); };
+    img.src = url;
+  });
+}
+
+/* ---------- Teilen / Kopieren ---------- */
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); return true; }
+  catch {
+    const ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    let ok = false; try { ok = document.execCommand('copy'); } catch { }
+    ta.remove(); return ok;
+  }
+}
