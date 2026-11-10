@@ -117,6 +117,7 @@ function renderDiary() {
         <button class="icon-btn" data-act="settings" aria-label="Einstellungen">${I.gear}</button>
       </div>
     </header>
+    ${backupCardHtml()}
     <nav class="week">${[0, 1, 2, 3, 4, 5, 6].map(i => {
       const d = addDays(mon, i), k = keyOf(d);
       return `<button class="wd ${k === S.sel ? 'sel' : ''} ${k === tk ? 'today' : ''}" data-act="day" data-k="${k}"><span>${WD[i]}</span><b>${d.getDate()}</b><i class="${dayHasData(k) ? 'on' : ''}"></i></button>`;
@@ -153,6 +154,7 @@ function renderDiary() {
     </div>`;
 }
 async function diaryClick(a, act) {
+  if (backupClick(act)) return;
   if (act === 'day') { S.sel = a.dataset.k; renderMain(); }
   else if (act === 'today') { S.sel = todayKey(); renderMain(); }
   else if (act === 'prevW') { S.sel = keyOf(addDays(fromKey(S.sel), -7)); renderMain(); }
@@ -193,7 +195,8 @@ function dishesClick(a, act) {
   else if (act === 'dish') openRecipeEditor(S.dishes.find(d => d.id === a.dataset.id));
 }
 function foodsClick(a, act) {
-  if (act === 'newFood') openFoodEditor({ name: S.foodQuery });
+  if (act === 'scan') scanAndAdd(f => toast(`${f.name} gespeichert`));
+  else if (act === 'newFood') openFoodEditor({ name: S.foodQuery });
   else if (act === 'food') openFoodEditor({ food: foodById(a.dataset.id) });
   else if (act === 'filter') { S.foodFilter = a.dataset.f; renderFoods(); }
 }
@@ -310,7 +313,7 @@ function foodRow(f, act = 'pick') {
 function openFoodPicker({ title, onPick }) {
   const sh = openSheet({ title, full: true });
   let q = '';
-  sh.content.innerHTML = `<div class="search">${I.search}<input placeholder="Lebensmittel suchen …" autocomplete="off" enterkeyhint="search"></div><div class="res"></div><div class="picked"><button class="btn primary full" data-act="done">Fertig</button></div>`;
+  sh.content.innerHTML = `<div class="search-row"><div class="search">${I.search}<input placeholder="Lebensmittel suchen …" autocomplete="off" enterkeyhint="search"></div><button class="icon-btn scan-btn" data-act="scan" aria-label="Barcode scannen">${I.barcode}</button></div><div class="res"></div><div class="picked"><button class="btn primary full" data-act="done">Fertig</button></div>`;
   const inp = $('input', sh.content), res = $('.res', sh.content);
   const render = () => {
     const nq = q.trim();
@@ -335,6 +338,7 @@ function openFoodPicker({ title, onPick }) {
     else if (a.dataset.act === 'pick') onPick(foodById(a.dataset.id));
     else if (a.dataset.act === 'adhoc') onPick({ id: null, name: q.trim(), per100: null });
     else if (a.dataset.act === 'create') openFoodEditor({ name: q.trim(), onSaved: f => setTimeout(() => onPick(f), 300) });
+    else if (a.dataset.act === 'scan') scanAndAdd(f => setTimeout(() => onPick(f), 300));
   });
   sh.refresh = render;
   render();
@@ -346,7 +350,7 @@ function openGrams({ food, g = null, confirmLabel = 'Hinzufügen', onConfirm, on
   const v = food.per100 !== undefined ? food.per100 : p100(food);
   const sh = openSheet({ title: food.name });
   let val = g ?? (food.piece || 100);
-  const quick = food.piece ? [1, 2, 3].map(x => [x * food.piece, `${x} ${food.pieceLabel || 'Stück'}`]) : [];
+  const quick = food.piece ? [1, 2, 3].map(x => [x * food.piece, x === 1 ? `1 ${food.pieceLabel || 'Stück'}` : `${x}× ${food.pieceLabel || 'Stück'}`]) : [];
   [50, 100, 150, 200, 250].forEach(x => quick.push([x, `${x} g`]));
   sh.content.innerHTML = `
     <div class="info">${per100Line(v)}${food.piece ? `<br>1 ${esc(food.pieceLabel || 'Stück')} ≈ ${f0(food.piece)} g` : ''}</div>
@@ -568,7 +572,7 @@ function openRecipeEditor(dish) {
 /* ---------- Lebensmittel ---------- */
 function renderFoods() {
   $('#app').innerHTML = `
-    <div class="view-h"><h1>Lebensmittel</h1><button class="btn primary" data-act="newFood" style="min-height:40px;padding:8px 14px">${I.plus} Neu</button></div>
+    <div class="view-h"><h1>Lebensmittel</h1><div class="vh-btns"><button class="btn" data-act="scan" style="min-height:40px;padding:8px 12px" aria-label="Barcode scannen">${I.barcode}</button><button class="btn primary" data-act="newFood" style="min-height:40px;padding:8px 14px">${I.plus} Neu</button></div></div>
     <div class="search">${I.search}<input id="foodQ" placeholder="Suchen …" value="${esc(S.foodQuery)}" autocomplete="off"></div>
     <div class="chips" style="margin-top:0">${[['all', 'Alle'], ['own', 'Eigene & angepasste']].map(([k, l]) => `<button class="chip ${S.foodFilter === k ? 'on' : ''}" data-act="filter" data-f="${k}">${l}</button>`).join('')}</div>
     <div id="foodList"></div>`;
@@ -584,11 +588,12 @@ function renderFoodList() {
   el.innerHTML = CATS.filter(c => groups[c]).map(c => `<div class="list-label">${esc(c)}</div><div class="list">${groups[c].sort((a, b) => a.name.localeCompare(b.name, 'de')).map(f => foodRow(f, 'food')).join('')}</div>`).join('')
     || '<div class="empty"><b>Noch keine eigenen Lebensmittel</b>Eigene oder angepasste Lebensmittel erscheinen hier.</div>';
 }
-function openFoodEditor({ food = null, name = '', onSaved }) {
-  const f = food ? { ...food } : { name, cat: 'Eigene', kcal: '', p: '', c: '', f: '', piece: '', pieceLabel: '' };
-  const sh = openSheet({ title: food ? 'Lebensmittel bearbeiten' : 'Neues Lebensmittel' });
+function openFoodEditor({ food = null, name = '', onSaved, prefill = null }) {
+  const f = food ? { ...food } : { name, cat: 'Eigene', kcal: '', p: '', c: '', f: '', piece: '', pieceLabel: '', ...(prefill || {}) };
+  const sh = openSheet({ title: food ? 'Lebensmittel bearbeiten' : prefill && prefill.source ? 'Gescannt – bitte prüfen' : 'Neues Lebensmittel' });
   const fld = (k, l, u = 'g') => `<label class="field"><span>${l}</span><span class="inp-g"><input data-f="${k}" inputmode="decimal" value="${f[k] === '' || f[k] == null ? '' : f1(f[k])}" placeholder="0"><em>${u}</em></span></label>`;
   sh.content.innerHTML = `
+    ${prefill && prefill.source ? `<div class="info">${I.barcode} Werte von Open Food Facts (Barcode ${esc(f.barcode)}). Kurz mit der Packung vergleichen.</div>` : prefill && prefill.barcode ? `<div class="info warn">Barcode ${esc(f.barcode)} ist in der Datenbank nicht bekannt – bitte Werte von der Packung eintragen. Beim nächsten Scan wird er erkannt.</div>` : ''}
     <label class="field"><span>Name</span><input data-f="name" value="${esc(f.name)}" placeholder="z. B. Lieblings-Müsli"></label>
     <label class="field"><span>Kategorie</span><select data-f="cat">${CATS.map(c => `<option ${c === f.cat ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
     <div class="sec-h" style="margin-top:4px"><h3>Nährwerte pro 100 g / 100 ml</h3></div>
@@ -612,6 +617,7 @@ function openFoodEditor({ food = null, name = '', onSaved }) {
       const P = num(val('p')) || 0, C = num(val('c')) || 0, F = num(val('f')) || 0;
       let K = num(val('kcal')); if (isNaN(K)) K = Math.round(P * 4 + C * 4 + F * 9);
       const data = { name: nm, cat: val('cat'), kcal: K, p: P, c: C, f: F, piece: num(val('piece')) || null, pieceLabel: val('pieceLabel').trim() || null };
+      if (f.barcode) data.barcode = f.barcode;
       let saved;
       if (food && food.builtin) { S.overrides[food.id] = data; saved = { ...food, ...data, overridden: true }; }
       else if (food && food.custom) { Object.assign(S.customFoods.find(x => x.id === food.id), data); saved = foodById(food.id); }
@@ -693,4 +699,75 @@ async function dayFiles(dk) {
     }
   }
   return files;
+}
+
+/* ---------- Barcode-Scanner (Open Food Facts) ---------- */
+function scanBarcode() {
+  return new Promise(async resolve => {
+    let result = null, stream = null, timer = null, done = false;
+    const manual = async () => {
+      const r = await dialog({ title: 'Barcode eingeben', text: 'Die Zahl unter den Strichen auf der Packung.', input: { placeholder: 'z. B. 4008400401621', mode: 'numeric' }, buttons: [{ label: 'Suchen', value: true, cls: 'primary' }] });
+      return r ? r.text.replace(/\D/g, '') : null;
+    };
+    if (!('BarcodeDetector' in window) || !navigator.mediaDevices) { resolve(await manual()); return; }
+    let det;
+    try { det = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] }); } catch { resolve(await manual()); return; }
+    const el = document.createElement('div');
+    el.className = 'ov scan';
+    el.innerHTML = `<video playsinline muted autoplay></video><div class="scan-frame"></div>
+      <div class="scan-top"><button class="icon-btn" data-s="close" aria-label="Schließen">${I.x}</button><span>Barcode in den Rahmen halten</span></div>
+      <div class="scan-bot"><button class="btn" data-s="manual">Nummer eintippen</button></div>`;
+    const stop = () => { done = true; clearInterval(timer); if (stream) stream.getTracks().forEach(t => t.stop()); };
+    el.addEventListener('closed', () => { stop(); resolve(result); });
+    let manualAfter = false;
+    const origResolve = resolve;
+    resolve = async v => { if (manualAfter && !v) origResolve(await manual()); else origResolve(v); };
+    el.addEventListener('click', e => {
+      const b = e.target.closest('[data-s]'); if (!b) return;
+      if (b.dataset.s === 'manual') manualAfter = true;
+      stop(); closeOverlays(1);
+    });
+    pushOverlay(el);
+    const video = $('video', el);
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 } }, audio: false });
+      if (done) { stop(); return; }
+      video.srcObject = stream; await video.play().catch(() => { });
+    } catch { toast('Kein Kamerazugriff – Nummer eintippen'); manualAfter = true; closeOverlays(1); return; }
+    timer = setInterval(async () => {
+      if (done || video.readyState < 2) return;
+      try {
+        const codes = await det.detect(video);
+        const c = codes.find(x => /^\d{8,14}$/.test(x.rawValue));
+        if (c && !done) { result = c.rawValue; if (navigator.vibrate) navigator.vibrate(80); stop(); closeOverlays(1); }
+      } catch { }
+    }, 180);
+  });
+}
+async function lookupBarcode(code) {
+  const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,product_name_de,brands,nutriments,serving_quantity`;
+  const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 9000);
+  try {
+    const r = await fetch(url, { signal: ctl.signal });
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (j.status !== 1 || !j.product) return null;
+    const p = j.product, n = p.nutriments || {};
+    const g = k => { const v = num(n[k + '_100g']); return isNaN(v) ? null : Math.round(v * 10) / 10; };
+    let kcal = g('energy-kcal'); if (kcal == null && g('energy') != null) kcal = Math.round(g('energy') / 4.184);
+    const name = (p.product_name_de || p.product_name || '').trim();
+    const brand = (p.brands || '').split(',')[0].trim();
+    return { name: name ? (brand && !name.toLowerCase().includes(brand.toLowerCase()) ? `${name} (${brand})` : name) : brand || `Produkt ${code}`, kcal: kcal ?? '', p: g('proteins') ?? '', c: g('carbohydrates') ?? '', f: g('fat') ?? '', piece: num(p.serving_quantity) > 0 ? num(p.serving_quantity) : '', pieceLabel: num(p.serving_quantity) > 0 ? 'Portion' : '', barcode: code, source: 'off' };
+  } catch { return undefined; } finally { clearTimeout(to); }
+}
+async function scanAndAdd(onSaved) {
+  const code = await scanBarcode();
+  if (!code) return;
+  const local = S.customFoods.find(f => f.barcode === code);
+  if (local) { toast(`Erkannt: ${local.name}`); onSaved(local); return; }
+  toast('Suche Produkt …');
+  const info = await lookupBarcode(code);
+  if (info === undefined) toast('Keine Verbindung – Werte bitte selbst eintragen');
+  else if (info === null) toast('Produkt nicht gefunden');
+  openFoodEditor({ prefill: info || { barcode: code }, onSaved });
 }

@@ -73,7 +73,7 @@ async function openSettings() {
       </div>
 
       <div class="sec-h"><h3>Datensicherung</h3></div>
-      <p class="muted" style="margin-bottom:12px">Alle Daten liegen nur auf diesem Handy. Mach ab und zu ein Backup – z. B. vor einem Handywechsel.</p>
+      <p class="muted" style="margin-bottom:12px">Alle Daten liegen nur auf diesem Handy. ${S.settings.lastBackup ? `Letztes Backup: ${new Date(S.settings.lastBackup).toLocaleDateString('de-DE')}.` : 'Noch kein Backup.'} Tipp: Beim Speichern „Drive“ wählen, dann liegt es sicher in der Cloud. Die App erinnert dich alle 7 Tage.</p>
       <div class="set-row">
         <button class="btn" data-a="export">${I.download} Backup speichern</button>
         <label class="btn file-btn">${I.upload} Wiederherstellen<input type="file" accept="application/json,.json" data-import></label>
@@ -286,13 +286,15 @@ async function exportBackup() {
   const name = `kraftbuch-backup-${todayKey()}.json`;
   const file = new File([blob], name, { type: 'application/json' });
   try {
-    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); return; }
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); markBackup(); return; }
   } catch (e) { if (e.name === 'AbortError') return; }
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  markBackup();
   toast('Backup gespeichert');
 }
+function markBackup() { S.settings.lastBackup = Date.now(); delete S.settings.backupSnooze; saveSettings(); renderMain(); }
 async function importBackup(file) {
   let data;
   try { data = JSON.parse(await file.text()); if (!['kraftbuch', 'futterbuch'].includes(data.app)) throw 0; }

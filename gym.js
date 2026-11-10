@@ -118,6 +118,79 @@ function roundW(v, w, dir = 0) {
   return Math.max(0, Math.round(f(w / step) * step * 100) / 100);
 }
 
+/* ---------- Scheibenrechner ---------- */
+const PLATES = [25, 20, 15, 10, 5, 2.5, 1.25];
+const PLATE_COL = { 25: '#e5484d', 20: '#3d9bff', 15: '#f5c84c', 10: '#35d07f', 5: '#e9edf3', 2.5: '#9aa3b2', 1.25: '#6b7385' };
+function platesFor(perSide) {
+  let rest = Math.round(perSide * 100) / 100; const out = [];
+  for (const p of PLATES) while (rest >= p - 1e-6) { out.push(p); rest = Math.round((rest - p) * 100) / 100; }
+  return { plates: out, rest };
+}
+function platesHtml(v, w, label) {
+  if (!v || v.load !== 'side' || isNaN(num(w))) return '';
+  const { plates, rest } = platesFor(num(w));
+  return `<div class="plates"><span class="pl-l">${esc(label)}</span>${plates.length ? plates.map(p => `<span class="plate" style="--pc:${PLATE_COL[p]}">${f2(p)}</span>`).join('') : '<span class="muted">nur Stange</span>'}${rest > 0 ? `<span class="muted">+ ${f2(rest)} kg?</span>` : ''}</div>`;
+}
+
+/* ---------- Pausen messen ---------- */
+const SET_SEC = 45; // geschätzte Dauer eines Satzes, wird vom Abstand abgezogen
+function restStats(items) {
+  let sum = 0, n = 0, plan = 0;
+  const per = items.map(it => {
+    const ex = exById(it.exId);
+    const ts = it.sets.map(s => s.t).filter(Boolean).sort((a, b) => a - b);
+    const rs = [];
+    for (let i = 1; i < ts.length; i++) { const r = (ts[i] - ts[i - 1]) / 1000 - SET_SEC; if (r > 0 && r < 1800) rs.push(r); }
+    if (rs.length) { sum += rs.reduce((a, b) => a + b, 0); n += rs.length; plan += (ex ? ex.rest : 0) * rs.length; }
+    return rs.length ? { avg: rs.reduce((a, b) => a + b, 0) / rs.length, plan: ex ? ex.rest : 0, n: rs.length } : null;
+  });
+  return { per, avg: n ? sum / n : null, plan: n ? plan / n : null };
+}
+
+/* ---------- Sätze pro Muskel ---------- */
+function muscleSets(mon) {
+  const end = addDays(mon, 7), res = {};
+  const add = (exId, n) => { const ex = exById(exId); if (!ex || !n) return; res[ex.muscle] = (res[ex.muscle] || 0) + n; ex.secondary.forEach(m => { res[m] = (res[m] || 0) + n * 0.5; }); };
+  for (const w of S.workouts) { const d = fromKey(w.date); if (d >= mon && d < end) w.items.forEach(it => add(it.exId, it.sets.length)); }
+  if (S.active) { const d = new Date(S.active.start); if (d >= mon && d < end) S.active.items.forEach(it => add(it.exId, it.sets.filter(s => s.done).length)); }
+  return Object.entries(res).sort((a, b) => b[1] - a[1]);
+}
+let msOffset = 0;
+function muscleCardHtml() {
+  const mon = addDays(weekStart(new Date()), msOffset * 7);
+  const rows = muscleSets(mon);
+  const max = Math.max(20, ...rows.map(r => r[1]));
+  return `<section class="card ms">
+    <div class="ms-h"><b>Sätze pro Muskel</b><span class="spacer"></span><button class="icon-btn sm" data-act="msPrev" aria-label="Woche zurück">${I.chevL}</button><span class="ms-w">${msOffset === 0 ? 'Diese Woche' : msOffset === -1 ? 'Letzte Woche' : 'KW ' + isoWeek(mon)}</span><button class="icon-btn sm" data-act="msNext" aria-label="Woche vor" ${msOffset >= 0 ? 'disabled' : ''}>${I.chevR}</button></div>
+    ${rows.length ? `<div class="ms-rows">${rows.map(([m, n]) => `<div class="ms-r"><span class="ms-n">${esc(m)}</span><span class="ms-bar"><i style="width:${n / max * 100}%;background:${muscleColor(m)}"></i><em style="left:${10 / max * 100}%"></em></span><b>${f1(n)}</b></div>`).join('')}</div>
+    <p class="ms-leg">Hauptmuskel zählt 1, Hilfsmuskel ½. Strich = 10 Sätze (häufiger Richtwert für Muskelaufbau: 10–20 pro Woche).</p>` : '<p class="muted">In dieser Woche noch keine Sätze.</p>'}
+  </section>`;
+}
+function muscleSetsText(mon) {
+  const rows = muscleSets(mon);
+  return rows.length ? 'Sätze pro Muskel (Haupt 1, Hilfs ½): ' + rows.map(([m, n]) => `${m} ${f1(n)}`).join(', ') : '';
+}
+
+/* ---------- Backup-Erinnerung ---------- */
+function backupDue() {
+  const st = S.settings, now = Date.now();
+  if (!S.workouts.length && !Object.keys(S.days).length) return null;
+  if (st.backupSnooze && now < st.backupSnooze) return null;
+  const ref = st.lastBackup || st.firstUse || now;
+  const days = Math.floor((now - ref) / 86400000);
+  return days >= 7 ? { days, never: !st.lastBackup } : null;
+}
+function backupCardHtml() {
+  const d = backupDue(); if (!d) return '';
+  return `<section class="card bk">${I.save}<div class="bk-main"><b>Zeit für ein Backup</b><small>${d.never ? 'Du hast noch nie gesichert.' : `Letztes Backup vor ${d.days} Tagen.`} Deine Daten liegen nur auf diesem Handy.</small>
+    <div class="bk-btns"><button class="btn primary sm" data-act="backupNow">Jetzt sichern</button><button class="btn ghost sm" data-act="backupLater">Später</button></div></div></section>`;
+}
+function backupClick(act) {
+  if (act === 'backupNow') { exportBackup(); return true; }
+  if (act === 'backupLater') { S.settings.backupSnooze = Date.now() + 3 * 86400000; saveSettings(); renderMain(); return true; }
+  return false;
+}
+
 /* ---------- Verlauf ---------- */
 const sortedWorkouts = () => S.workouts.slice().sort((a, b) => b.start - a.start);
 const workoutsOn = k => S.workouts.filter(w => w.date === k);
@@ -230,6 +303,7 @@ function renderTraining() {
           <span class="pday-tiles">${shown.map(it => { const { ex, v } = findVar(it.varId); return tileHtml(ex, v, 'sm'); }).join('')}${d.items.length > 3 ? `<span class="tile sm more">+${d.items.length - 3}</span>` : ''}</span>
         </button>`;
       }).join('') || '<div class="empty">Noch keine Trainingstage. Über ⋯ → „Plan bearbeiten“ anlegen.</div>'}</section>
+      ${muscleCardHtml()}
       ${stag.length && !plan.deload ? `<section class="card stag">
         <div class="stag-h">${I.chart}<b>Keine Steigerung seit 3 Einheiten</b></div>
         <p>${stag.slice(0, 6).map(s => esc(s.ex.name)).join(', ')}${stag.length > 6 ? ` und ${stag.length - 6} weitere` : ''}</p>
@@ -248,6 +322,7 @@ function renderTraining() {
         <button class="icon-btn" data-act="settings" aria-label="Einstellungen">${I.gear}</button>
       </div>
     </header>
+    ${backupCardHtml()}
     <nav class="week">${[0, 1, 2, 3, 4, 5, 6].map(i => {
       const d = addDays(mon, i), k = keyOf(d), n = workoutsOn(k).length;
       return `<button class="wd ${k === tk ? 'today' : ''}" data-act="wday" data-k="${k}"><span>${WD[i]}</span><b>${d.getDate()}</b><i class="${n ? 'on' : ''}"></i></button>`;
@@ -262,6 +337,8 @@ function renderTraining() {
 }
 async function trainingClick(a, act) {
   const plan = activePlan();
+  if (backupClick(act)) return;
+  if (act === 'msPrev' || act === 'msNext') { msOffset = Math.min(0, msOffset + (act === 'msPrev' ? -1 : 1)); renderMain(); return; }
   if (act === 'day') openDaySheet(plan, +a.dataset.i);
   else if (act === 'resume') openWorkout();
   else if (act === 'planMenu') planMenu(plan);
@@ -401,6 +478,8 @@ function openWorkout() {
           <button class="wx-var" data-a="variant">${(EQUIP[v.equip] || EQUIP.sonstiges).icon}${esc(v.name)}${v.uni ? ' · einseitig' : ''}${I.down}</button></div>
           <button class="icon-btn" data-a="exMenu" aria-label="Übungsmenü">${I.dots}</button></div>
         <div class="wx-meta"><span>${ex.repMin}–${ex.repMax} Wdh</span><span>${I.timer}${fmtClock(ex.rest)}</span>${v.load === 'side' ? `<span>pro Seite + ${f2(v.base)} kg</span>` : v.load === 'hand' ? '<span>pro Hantel</span>' : v.load === 'extra' ? '<span>Zusatzgewicht</span>' : ''}</div>
+        ${v.note ? `<div class="fixnote">${I.edit}<span>${esc(v.note)}</span></div>` : ''}
+        ${(() => { if (v.load !== 'side') return ''; const wi = warms.findIndex((_, i) => !it.warmDone[i]); if (wi >= 0) return platesHtml(v, warms[wi].w, `Aufwärmen ${wi + 1}`); const si = it.sets.findIndex(s => !s.done); return si >= 0 ? platesHtml(v, it.sets[si].w, `Satz ${si + 1} pro Seite`) : ''; })()}
         ${sg.hint ? `<div class="hint ${sg.up ? 'up' : ''}">${sg.up ? I.up : I.info}<span>${esc(sg.hint)}</span></div>` : ''}
         <div class="sets ${rir ? 'with-rir' : ''}">
           <div class="set-h"><span>Satz</span><span>KG</span><span>WDH</span>${rir ? '<span>RIR</span>' : ''}<span></span></div>
@@ -569,7 +648,7 @@ async function workoutClick(e, render) {
     case 'goto': A.cur = i; save(); break;
     case 'w': {
       const s = it.sets[i];
-      const val = await pickNumber({ title: `Satz ${i + 1} · Gewicht`, value: s.w, unit: 'kg', options: weightOptions(v, s.w), cols: 4, sub: v.load === 'side' ? `Pro Seite – kleine Zahl = Gesamtgewicht inkl. ${f2(v.base)} kg Stange` : v.load === 'extra' ? 'Zusatzgewicht (0 = nur Körpergewicht)' : null });
+      const val = await pickNumber({ title: `Satz ${i + 1} · Gewicht`, value: s.w, unit: 'kg', options: weightOptions(v, s.w), cols: 4, sub: v.load === 'side' ? `Pro Seite – kleine Zahl = Gesamtgewicht inkl. ${f2(v.base)} kg Stange. Scheiben für ${wTxt(v, s.w)}: ${platesFor(num(s.w) || 0).plates.map(f2).join(' + ') || '–'}` : v.load === 'extra' ? 'Zusatzgewicht (0 = nur Körpergewicht)' : null });
       if (val === null) return;
       const old = s.w;
       s.w = val; s.sug = false;
@@ -590,9 +669,9 @@ async function workoutClick(e, render) {
     }
     case 'done': {
       const s = it.sets[i];
-      if (s.done) { s.done = false; save(); break; }
+      if (s.done) { s.done = false; delete s.t; save(); break; }
       if (isNaN(num(s.w)) || !(num(s.r) > 0)) { toast('Bitte Gewicht und Wiederholungen eintragen'); return; }
-      s.done = true; s.sug = false; s.w = num(s.w); s.r = num(s.r);
+      s.done = true; s.sug = false; s.w = num(s.w); s.r = num(s.r); s.t = Date.now();
       setTimer(ex.rest);
       if (it.sets.every(x => x.done)) {
         const nextI = A.items.findIndex((x, j) => j > A.cur && !x.sets.every(y => y.done));
@@ -638,13 +717,15 @@ async function workoutClick(e, render) {
         { label: 'Übungsdetails & Einstellungen', sub: 'Wdh-Bereich, Pause, Aufwärmsätze, Graph', value: 'detail', icon: I.info },
         { label: 'Aufwärmsatz hinzufügen', value: 'addWarm', icon: I.plus },
         ...(warmTemplate(ex).length ? [{ label: 'Letzten Aufwärmsatz entfernen', value: 'rmWarm', icon: I.minus }] : []),
-        { label: it.note ? 'Notiz bearbeiten' : 'Notiz', value: 'note', icon: I.edit },
+        { label: v.note ? 'Feste Notiz bearbeiten' : 'Feste Notiz', sub: 'Bleibt bei jedem Training sichtbar, z. B. Sitz Stufe 4', value: 'fixnote', icon: I.edit },
+        { label: it.note ? 'Notiz für heute bearbeiten' : 'Notiz nur für heute', value: 'note', icon: I.edit },
         { label: 'Nach oben', value: 'upEx', icon: I.up },
         { label: 'Übung aus diesem Training entfernen', value: 'rmEx', icon: I.trash, cls: 'danger-row' },
       ]);
       if (c === 'detail') openExerciseDetail(ex);
       else if (c === 'addWarm') { const tpl = clone(warmTemplate(ex)); const lp = tpl.length ? tpl[tpl.length - 1].p : 0.4; tpl.push({ p: Math.min(0.95, lp + 0.15), r: 3 }); ex.warmup = tpl; saveExercises(); save(); }
       else if (c === 'rmWarm') { const tpl = clone(warmTemplate(ex)); tpl.pop(); ex.warmup = tpl; it.warmDone.length = Math.min(it.warmDone.length, tpl.length); saveExercises(); save(); }
+      else if (c === 'fixnote') { const r = await dialog({ title: 'Feste Notiz', text: `Für ${ex.name} – ${v.name}. Leer lassen zum Löschen.`, input: { value: v.note || '', placeholder: 'z. B. Sitz Stufe 4, Polster 2', allowEmpty: true }, buttons: [{ label: 'Speichern', value: true, cls: 'primary' }] }); if (r) { v.note = r.text; saveExercisesNow(); save(); } }
       else if (c === 'note') { const r = await dialog({ title: 'Notiz', input: { value: it.note, placeholder: 'z. B. Sitz Stufe 4', allowEmpty: true }, buttons: [{ label: 'Speichern', value: true, cls: 'primary' }] }); if (r) { it.note = r.text; save(); } }
       else if (c === 'upEx' && A.cur > 0) { const [m] = A.items.splice(A.cur, 1); A.items.splice(A.cur - 1, 0, m); A.cur--; save(); }
       else if (c === 'rmEx') { if (await confirmDlg('Übung entfernen?', 'Bereits erledigte Sätze dieser Übung gehen verloren.', 'Entfernen')) { A.items.splice(A.cur, 1); save(); } }
@@ -687,7 +768,7 @@ async function finishWorkout() {
     items: A.items.map(it => {
       const ex = exById(it.exId), v = varOf(ex, it.varId);
       const warms = S.settings.gym.warmups ? warmSets(ex, v, (it.sets.find(s => s.done) || {}).w) : [];
-      return { exId: it.exId, varId: it.varId, note: it.note || '', warm: warms.filter((_, i) => it.warmDone[i]).map(x => ({ w: x.w, r: x.r })), sets: it.sets.filter(s => s.done).map(s => ({ w: num(s.w), r: num(s.r), rir: s.rir })) };
+      return { exId: it.exId, varId: it.varId, note: it.note || '', warm: warms.filter((_, i) => it.warmDone[i]).map(x => ({ w: x.w, r: x.r })), sets: it.sets.filter(s => s.done).map(s => ({ w: num(s.w), r: num(s.r), rir: s.rir, t: s.t || null })) };
     }).filter(it => it.sets.length),
   };
   // Rekorde
@@ -708,7 +789,8 @@ function showSummary(w, prs) {
   const sets = w.items.reduce((n, it) => n + it.sets.length, 0);
   const vol = w.items.reduce((n, it) => { const { v } = findVar(it.varId); return n + it.sets.reduce((m, s) => m + (v ? (v.load === 'extra' ? 0 : total(v, s.w)) * s.r * (v.uni ? 2 : 1) : 0), 0); }, 0);
   sh.content.innerHTML = `
-    <div class="sum-grid"><div><b>${fmtDur(w.end - w.start)}</b><span>Dauer</span></div><div><b>${sets}</b><span>Sätze</span></div><div><b>${f0(vol / 1000 * 10) / 10 > 0 ? f1(vol / 1000) + ' t' : '–'}</b><span>Volumen</span></div></div>
+    <div class="sum-grid"><div><b>${fmtDur(w.end - w.start)}</b><span>Dauer</span></div><div><b>${sets}</b><span>Sätze</span></div><div><b>${vol > 0 ? f1(vol / 1000) + ' t' : '–'}</b><span>Volumen</span></div></div>
+    ${(() => { const r = restStats(w.items); return r.avg != null ? `<div class="info ${r.avg > r.plan * 1.25 ? 'warn' : ''}">${I.timer} Ø Pause <b>${fmtClock(r.avg)}</b> (geplant Ø ${fmtClock(r.plan)})${r.avg > r.plan * 1.25 ? ' – deutlich länger als geplant.' : ''}</div>` : ''; })()}
     ${prs.length ? `<div class="info pr">${I.fire}<span><b>Neue Bestleistung:</b> ${esc(prs.join(', '))}</span></div>` : ''}
     <div class="sheet-actions"><button class="btn" data-a="share">${I.share} Teilen</button><button class="btn primary" data-a="ok">Fertig</button></div>`;
   sh.content.addEventListener('click', e => {
@@ -861,6 +943,7 @@ function openExerciseDetail(ex) {
           ${setRow('vload', 'Gewichtsangabe', LOADS[v.load].l)}
           ${v.load === 'side' || v.load === 'total' ? setRow('vbase', v.load === 'side' ? 'Stange / Grundgewicht' : 'Grundgewicht (z. B. Schlitten)', `${f2(v.base)} kg`) : ''}
           ${setRow('vstep', 'Gewichtsschritt', `${f2(v.step)} kg`)}
+          ${setRow('vnote', 'Feste Notiz', v.note || '–')}
           <button class="row" data-a="vuni"><span class="row-main"><b>Einseitig</b><small>Einarmig / einbeinig – Wdh pro Seite</small></span><span class="switch ${v.uni ? 'on' : ''}"><i></i></span></button>
           <div class="row photo-row"><span class="row-main"><b>Foto vom Gerät</b><small>Erscheint als Bild im Plan und im Training</small></span>
             ${v.photo ? `<span class="tile"><img data-pid="${v.photo}" alt=""></span><button class="icon-btn sm" data-a="vphotoDel" aria-label="Foto löschen">${I.trash}</button>` : ''}
@@ -931,6 +1014,7 @@ function openExerciseDetail(ex) {
     else if (act === 'vbase') { const b = await pickNumber({ title: 'Stange / Grundgewicht', value: v.base, unit: 'kg', options: [0, 5, 7.5, 10, 15, 20, 25].map(x => ({ v: x })), cols: 4 }); if (b !== null) { v.base = b; done(); } }
     else if (act === 'vstep') { const b = await pickNumber({ title: 'Gewichtsschritt', value: v.step, unit: 'kg', options: [0.5, 1, 1.25, 2, 2.5, 5, 7, 10].map(x => ({ v: x })), cols: 4, sub: 'Für Vorschläge. Gewichte, die du schon benutzt hast, werden bevorzugt.' }); if (b !== null && b > 0) { v.step = b; done(); } }
     else if (act === 'vuni') { v.uni = !v.uni; done(); }
+    else if (act === 'vnote') { const r = await dialog({ title: 'Feste Notiz', text: 'Wird im Training bei dieser Variante angezeigt. Leer lassen zum Löschen.', input: { value: v.note || '', placeholder: 'z. B. Sitz Stufe 4', allowEmpty: true }, buttons: [{ label: 'Speichern', value: true, cls: 'primary' }] }); if (r) { v.note = r.text; done(); } }
     else if (act === 'vphotoDel') { DB.del(v.photo, 'photos').catch(() => { }); v.photo = null; done(); }
     else if (act === 'vdel') {
       if (sessionsFor(v.id).length) { toast('Variante hat schon Einträge und kann nicht gelöscht werden'); return; }
@@ -1125,6 +1209,8 @@ function buildWorkoutText(w) {
   const L = [];
   const d = fromKey(w.date);
   L.push(`${w.title}${w.dayIdx != null ? ` (Tag ${w.dayIdx + 1}${w.week ? ` · Woche ${w.week}` : ''})` : ''}${w.deload ? ' – DELOAD' : ''} – ${WDS[d.getDay()]}, ${numDate(w.date)}, ${timeOf(w.start)}${w.end ? `, Dauer ${fmtDur(w.end - w.start)}` : ''}`);
+  const rsAll = restStats(w.items);
+  if (rsAll.avg != null) L.push(`Ø Pause ${fmtClock(rsAll.avg)} (geplant Ø ${fmtClock(rsAll.plan)}; gemessen zwischen abgehakten Sätzen minus ca. ${SET_SEC} s Satzdauer)`);
   w.items.forEach((it, i) => {
     const { ex, v } = findVar(it.varId); if (!ex) return;
     const load = v.load === 'side' ? `kg pro Seite, Stange ${f2(v.base)} kg` : v.load === 'hand' ? 'kg pro Hantel' : v.load === 'extra' ? 'kg Zusatzgewicht' : 'kg';
@@ -1133,6 +1219,8 @@ function buildWorkoutText(w) {
     L.push(`   Sätze: ${it.sets.map(s => `${wTxt(v, s.w)}${v.load === 'side' ? ` (=${f2(total(v, s.w))})` : ''} × ${repsTxt(v, s.r)}${s.rir != null ? ` @RIR${s.rir}` : ''}`).join(' | ')}`);
     const prev = sessionsFor(v.id, { excludeId: w.id }).find(x => x.w.start < w.start);
     if (prev) L.push(`   Vorher (${numDate(prev.w.date).slice(0, 6)}): ${prev.it.sets.map(s => `${wTxt(v, s.w)} × ${s.r}`).join(' | ')}`);
+    const rs = restStats([it]).per[0];
+    if (rs) L.push(`   Pausen: Ø ${fmtClock(rs.avg)} (Plan ${fmtClock(rs.plan)})`);
     if (it.note) L.push(`   Notiz: ${it.note}`);
   });
   return L.join('\n');
@@ -1142,7 +1230,7 @@ function buildTrainingExport(dk, range) {
     const mon = weekStart(fromKey(dk));
     const ws = S.workouts.filter(w => { const d = fromKey(w.date); return d >= mon && d < addDays(mon, 7); }).sort((a, b) => a.start - b.start);
     if (!ws.length) return `TRAINING – KW ${isoWeek(mon)}: keine Trainings eingetragen`;
-    return `TRAINING – Woche KW ${isoWeek(mon)} (${rangeLabel(mon)}) – ${ws.length} Einheiten\n\n` + ws.map(buildWorkoutText).join('\n\n');
+    return `TRAINING – Woche KW ${isoWeek(mon)} (${rangeLabel(mon)}) – ${ws.length} Einheiten\n${muscleSetsText(mon)}\n\n` + ws.map(buildWorkoutText).join('\n\n');
   }
   const ws = workoutsOn(dk).sort((a, b) => a.start - b.start);
   if (!ws.length) return `TRAINING – ${longDate(dk)}: kein Training (Ruhetag)`;

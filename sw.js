@@ -1,5 +1,5 @@
 // Kraftbuch – Service Worker (offline-Betrieb)
-const CACHE = 'kraftbuch-v2';
+const CACHE = 'kraftbuch-v3';
 const ASSETS = ['./', './index.html', './app.js', './foods.js', './core.js', './food.js', './gym.js', './data.js', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

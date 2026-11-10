@@ -2,7 +2,7 @@
 /* =========================================================
    Kraftbuch – Kern: Helfer, Speicher, Overlays, Picker
    ========================================================= */
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 
 /* ---------- Helfer ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -99,6 +99,7 @@ const I = {
   edit: sv('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
   info: sv('<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/>'),
   up: sv('<path d="M6 15l6-6 6 6"/>'),
+  barcode: sv('<path d="M4 5v14M7 5v14M10.5 5v14M13 5v14M16.5 5v14M20 5v14"/>'),
 };
 
 /* ---------- Speicher (IndexedDB) ---------- */

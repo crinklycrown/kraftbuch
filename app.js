@@ -47,6 +47,7 @@ async function init() {
       else if (k === 'active') S.active = v;
       else if (k in S) S[k] = v;
     }
+    if (!S.settings.firstUse) { S.settings.firstUse = Date.now(); saveSettings(); }
     // Futterbuch beim ersten Start automatisch übernehmen
     if (!S.settings.migratedFutter) {
       const r = await migrateFutterbuch().catch(() => ({ found: false }));

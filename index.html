@@ -478,6 +478,41 @@ body.has-active #app{padding-bottom:calc(170px + env(safe-area-inset-bottom))}
 .tmr-adj{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;width:100%}
 .tmr-adj .btn{min-height:56px;font-size:18px;background:#14202c;border-color:#24384c;color:var(--sky)}
 .tmr-skip{width:100%;min-height:54px;background:var(--sky);border-color:var(--sky);color:var(--sky-tx);font-size:16px}
+
+/* v1.2 */
+.plates{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin:-2px 0 10px;font-size:12.5px}
+.pl-l{color:var(--mu);margin-right:2px}
+.plate{--pc:#888;min-width:30px;text-align:center;padding:3px 6px;border-radius:7px;font-weight:700;font-size:12.5px;background:color-mix(in srgb,var(--pc) 22%,transparent);color:var(--pc);border:1px solid color-mix(in srgb,var(--pc) 45%,transparent)}
+.fixnote{display:flex;gap:8px;align-items:flex-start;background:rgba(124,196,255,.1);color:var(--sky);border-radius:12px;padding:9px 11px;margin-bottom:10px;font-size:13.5px;font-weight:550}
+.fixnote svg{width:16px;height:16px;flex:none;margin-top:1px}
+.ms{margin-top:12px}
+.ms-h{display:flex;align-items:center;gap:4px;margin-bottom:10px}
+.ms-h b{font-size:15px}
+.ms-w{font-size:13px;color:var(--mu);min-width:86px;text-align:center}
+.ms-h .icon-btn[disabled]{opacity:.25}
+.ms-rows{display:flex;flex-direction:column;gap:7px}
+.ms-r{display:grid;grid-template-columns:96px 1fr 34px;align-items:center;gap:8px;font-size:13px}
+.ms-n{color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ms-r b{text-align:right;font-variant-numeric:tabular-nums}
+.ms-bar{position:relative;height:8px;background:var(--s3);border-radius:9px}
+.ms-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:9px}
+.ms-bar em{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--tx);opacity:.35;border-radius:2px}
+.ms-leg{font-size:11.5px;color:var(--mu2);margin-top:10px}
+.bk{display:flex;gap:12px;align-items:flex-start;margin-bottom:14px;border-color:rgba(124,196,255,.35);background:rgba(124,196,255,.07)}
+.bk>svg{color:var(--sky);flex:none;margin-top:2px}
+.bk-main{flex:1;display:flex;flex-direction:column;gap:2px}
+.bk-main small{color:var(--mu);font-size:13px}
+.bk-btns{display:flex;gap:8px;margin-top:10px}
+.search-row{display:flex;gap:8px;align-items:flex-start}
+.search-row .search{flex:1}
+.scan-btn{width:48px;height:48px;border-radius:12px;background:var(--s2);border:1px solid var(--line);color:var(--ac)}
+.vh-btns{display:flex;gap:8px}
+.ov.scan{background:#000}
+.ov.scan video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.scan-frame{position:absolute;left:10%;right:10%;top:36%;height:22%;border:3px solid var(--lime);border-radius:18px;box-shadow:0 0 0 2000px rgba(0,0,0,.45)}
+.scan-top{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:10px;padding:calc(env(safe-area-inset-top) + 10px) 12px;color:#fff;font-weight:600}
+.scan-bot{position:absolute;left:16px;right:16px;bottom:calc(24px + env(safe-area-inset-bottom));display:flex}
+.scan-bot .btn{flex:1}
 </style>
 </head>
 <body data-mode="gym">
