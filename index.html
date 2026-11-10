@@ -563,6 +563,46 @@ body.has-active #app{padding-bottom:calc(170px + env(safe-area-inset-bottom))}
 .crea.due .crea-ck{border-color:var(--kcal)}
 .crea.due small,.crea.due>svg{color:var(--kcal)}
 .time-in{width:auto;padding:8px 10px;font-size:16px;color-scheme:dark}
+
+/* v1.5 */
+.undo{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(16px);z-index:1000;display:flex;align-items:center;gap:14px;background:#2c2f37;border:1px solid var(--line);border-radius:14px;padding:8px 8px 8px 16px;font-size:14px;opacity:0;pointer-events:none;transition:.22s;box-shadow:0 10px 30px rgba(0,0,0,.5);max-width:calc(100% - 32px);white-space:nowrap}
+.undo.show{opacity:1;pointer-events:auto;transform:translateX(-50%)}
+.undo span{overflow:hidden;text-overflow:ellipsis}
+.undo button{color:var(--sky);font-weight:700;padding:8px 10px;border-radius:10px}
+.set{position:relative}
+.gain-badge{position:absolute;right:62px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center;gap:4px;background:var(--ok);color:#06210f;font-weight:800;font-size:13px;padding:5px 9px;border-radius:999px;animation:gainpop 1.9s ease forwards;pointer-events:none;white-space:nowrap}
+.gain-badge svg{width:14px;height:14px;stroke-width:3}
+.gain-badge.pr{background:linear-gradient(90deg,#ffd166,#ff9f45);color:#2a1600}
+@keyframes gainpop{0%{opacity:0;transform:translateY(-50%) scale(.6)}15%{opacity:1;transform:translateY(-50%) scale(1.12)}25%{transform:translateY(-50%) scale(1)}80%{opacity:1;transform:translateY(-140%)}100%{opacity:0;transform:translateY(-190%)}}
+.set.gain-hit{animation:rowglow 1.2s ease}
+.set.pr-hit{animation:rowgold 1.6s ease}
+@keyframes rowglow{0%{box-shadow:0 0 0 0 rgba(53,208,127,.7)}100%{box-shadow:0 0 0 14px rgba(53,208,127,0)}}
+@keyframes rowgold{0%{box-shadow:0 0 0 0 rgba(255,190,80,.85)}100%{box-shadow:0 0 0 18px rgba(255,190,80,0)}}
+.set.gain-hit .tick,.set.pr-hit .tick{animation:tickpop .45s ease}
+@keyframes tickpop{40%{transform:scale(1.25)}}
+.grip{width:22px;display:grid;place-items:center;color:var(--mu2);touch-action:none;cursor:grab;margin-left:-4px}
+.grip svg{width:18px;height:18px}
+.pe-it{transition:transform .15s;background:var(--s1)}
+.pe-it.dragging{transition:none;z-index:5;position:relative;box-shadow:0 8px 20px rgba(0,0,0,.5);border-radius:10px;background:var(--s2)}
+#app.swipe-l{animation:swl .22s ease}
+#app.swipe-r{animation:swr .22s ease}
+@keyframes swl{from{opacity:.4;transform:translateX(26px)}}
+@keyframes swr{from{opacity:.4;transform:translateX(-26px)}}
+.review{display:flex;align-items:center;gap:12px;margin-bottom:14px;background:linear-gradient(120deg,rgba(255,209,102,.13),rgba(255,159,69,.06));border-color:rgba(255,190,80,.35);cursor:pointer}
+.review>svg{color:#ffc76b;flex:none}
+.rv-main{flex:1;display:flex;flex-direction:column}
+.rv-main small{color:var(--mu);font-size:13px}
+.rv-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.rv-nav div{display:flex;flex-direction:column;align-items:center}
+.rv-nav small{color:var(--mu);font-size:12.5px}
+.rv-nav .icon-btn[disabled]{opacity:.25}
+.rv-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.rv-t{background:var(--s2);border-radius:14px;padding:12px 6px;text-align:center}
+.rv-t b{display:block;font-size:20px;font-weight:750}
+.rv-t b small{font-size:13px;color:var(--mu);font-weight:600}
+.rv-t span{font-size:11.5px;color:var(--mu)}
+.rv-t.good b{color:var(--ok)}.rv-t.gold b{color:#ffc76b}.rv-t.warn b{color:var(--f)}
+.list-label svg{width:13px;height:13px;vertical-align:-2px;margin-right:3px}
 </style>
 </head>
 <body data-mode="gym">
@@ -570,6 +610,7 @@ body.has-active #app{padding-bottom:calc(170px + env(safe-area-inset-bottom))}
 <button class="active-bar" id="activeBar" hidden></button>
 <nav class="nav"><div class="nav-in" id="nav"></div></nav>
 <div class="toast" id="toast"></div>
+<div class="undo" id="undo"></div>
 <script src="foods.js"></script>
 <script src="core.js"></script>
 <script src="food.js"></script>

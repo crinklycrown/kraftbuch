@@ -2,7 +2,7 @@
 /* =========================================================
    Kraftbuch – Kern: Helfer, Speicher, Overlays, Picker
    ========================================================= */
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.5.0';
 
 /* ---------- Helfer ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -101,6 +101,9 @@ const I = {
   up: sv('<path d="M6 15l6-6 6 6"/>'),
   backspace: sv('<path d="M9 5h11v14H9l-6-7z"/><path d="M12.5 9.5l5 5M17.5 9.5l-5 5"/>'),
   pill: sv('<rect x="3" y="8.5" width="18" height="7" rx="3.5" transform="rotate(-35 12 12)"/><path d="M10 9.2l4 5.6"/>'),
+  grip: sv('<circle cx="9" cy="6" r="1.2" fill="currentColor"/><circle cx="15" cy="6" r="1.2" fill="currentColor"/><circle cx="9" cy="12" r="1.2" fill="currentColor"/><circle cx="15" cy="12" r="1.2" fill="currentColor"/><circle cx="9" cy="18" r="1.2" fill="currentColor"/><circle cx="15" cy="18" r="1.2" fill="currentColor"/>'),
+  bolt: sv('<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>'),
+  trophy: sv('<path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H4.5a3 3 0 0 0 3.5 4M16 6h3.5a3 3 0 0 1-3.5 4M12 13v4M8 20h8M9.5 17h5"/>'),
   barcode: sv('<path d="M4 5v14M7 5v14M10.5 5v14M13 5v14M16.5 5v14M20 5v14"/>'),
 };
 
@@ -249,6 +252,15 @@ function menu(title, items) {
   });
 }
 
+let undoT;
+function showUndo(msg, undoFn) {
+  const el = $('#undo');
+  el.innerHTML = `<span>${esc(msg)}</span><button>Rückgängig</button>`;
+  el.classList.add('show');
+  clearTimeout(undoT);
+  $('button', el).onclick = () => { clearTimeout(undoT); el.classList.remove('show'); undoFn(); };
+  undoT = setTimeout(() => el.classList.remove('show'), 5500);
+}
 let toastT;
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');

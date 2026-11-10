@@ -6,12 +6,15 @@
 /* ---------- Export ---------- */
 function buildExport({ dk, what, range = 'day' }) {
   const parts = [];
+  if (range === 'week') {
+    const mon = weekStart(fromKey(dk)), st = weekStats(mon);
+    parts.push(`WOCHENRÜCKBLICK KW ${isoWeek(mon)}: ${st.workouts}${st.planned ? `/${st.planned}` : ''} Trainings, ${st.sets} Sätze, ${st.prs} Rekorde${st.rest != null ? `, Ø Pause ${fmtClock(st.rest)} (Plan ${fmtClock(st.restPlan)})` : ''}; Ernährung: ${st.foodDays} Tage erfasst, Ø ${f0(st.kcal)} kcal, Ø ${f0(st.p)} g Eiweiß, Eiweißziel ${st.pHit}/${st.foodDays}${S.settings.creatin.on ? `, Creatin ${st.crea}/7` : ''}`);
+  }
   if (what !== 'food') parts.push(buildTrainingExport(dk, range));
   if (what !== 'training') parts.push(range === 'week' ? buildFoodWeekExport(weekStart(fromKey(dk))) : buildFoodExport(dk));
   return parts.join('\n\n————————————\n\n') + '\n\n(Export aus Kraftbuch – App-Nährwerte sind Richtwerte)';
 }
-function openExport({ dk, what = 'both' }) {
-  let range = 'day';
+function openExport({ dk, what = 'both', range = 'day' }) {
   const sh = openSheet({ title: 'Teilen', full: true });
   const render = () => {
     const txt = buildExport({ dk, what, range });

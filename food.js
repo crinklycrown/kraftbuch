@@ -64,6 +64,7 @@ function dishFactor(e) {
   const f = num(e.factor); return isNaN(f) ? 0 : f;
 }
 function itemN(it) {
+  if (it.type === 'quick') return it.n && num(it.n.kcal) >= 0 && it.n.kcal !== '' ? { kcal: +it.n.kcal || 0, p: +it.n.p || 0, c: +it.n.c || 0, f: +it.n.f || 0, unknown: 0 } : { ...Z(), unknown: 1 };
   if (it.type === 'dish') {
     const n = ingsN(it.ingredients), k = dishFactor(it);
     return { kcal: n.kcal * k, p: n.p * k, c: n.c * k, f: n.f * k, unknown: n.unknown };
@@ -217,6 +218,7 @@ function itemRow(it, i) {
   const n = itemN(it);
   const sub = it.type === 'dish'
     ? `<span class="badge ac" style="margin:0 6px 0 0">Gericht</span>${dishAmountLabel(it)}`
+    : it.type === 'quick' ? `<span class="badge" style="margin:0 6px 0 0">Schnell</span>${esc(it.contains || 'geschätzt')}`
     : `${f0(num(it.g))} g`;
   return `<button class="item" data-act="item" data-i="${i}">
     <span class="row-main"><b>${esc(it.name)}${n.unknown ? '<span class="badge warn">ohne Werte</span>' : ''}</b><small>${sub}</small></span>
@@ -233,6 +235,7 @@ function openMeal(dk, mk) {
       <div class="macro-strip"><div class="mac k"><b>${f0(n.kcal)}</b><span>kcal</span></div><div class="mac p"><b>${f0(n.p)}</b><span>g Eiweiß</span></div><div class="mac c"><b>${f0(n.c)}</b><span>g Kohlenh.</span></div><div class="mac f"><b>${f0(n.f)}</b><span>g Fett</span></div></div>
       ${md.items.length ? `<div class="items">${md.items.map(itemRow).join('')}</div>` : '<div class="empty"><b>Noch leer</b>Füge ein Lebensmittel oder ein gespeichertes Gericht hinzu.</div>'}
       <div class="btn-row"><button class="btn" data-act="addFood">${I.plus} Lebensmittel</button><button class="btn" data-act="addDish">${I.plus} Gericht</button></div>
+      <button class="btn ghost full" style="margin-top:10px" data-act="addQuick">${I.bolt} Schnell-Eintrag (nur Schätzung)</button>
       <div class="sec-h"><h3>Fotos</h3>${md.photos.length ? `<span class="muted">${md.photos.length}</span>` : ''}</div>
       ${md.photos.length ? `<div class="thumbs">${md.photos.map(id => `<button class="thumb" data-act="photo" data-id="${id}"><img data-pid="${id}" alt=""></button>`).join('')}</div>` : ''}
       <div class="btn-row">
@@ -259,14 +262,16 @@ function openMeal(dk, mk) {
         }),
       }); break;
       case 'addDish': openDishPicker(dk, mk); break;
+      case 'addQuick': openQuickEntry({ dk, mk }); break;
       case 'item': {
         const i = +a.dataset.i, it = md.items[i];
         if (it.type === 'dish') openDishEntry({ dk, mk, entry: it, isNew: false });
+        else if (it.type === 'quick') openQuickEntry({ dk, mk, entry: it });
         else openGrams({
           food: { id: it.foodId, name: it.name, per100: it.per100, piece: foodById(it.foodId)?.piece, pieceLabel: foodById(it.foodId)?.pieceLabel },
           g: num(it.g), confirmLabel: 'Speichern',
           onConfirm: g => { it.g = g; saveDay(dk); },
-          onDelete: () => { md.items.splice(md.items.indexOf(it), 1); saveDay(dk); toast('Entfernt'); },
+          onDelete: () => removeMealItem(dk, mk, it),
           onAddValues: async () => {
             await closeOverlays(1);
             openFoodEditor({ name: it.name, onSaved: f => { it.foodId = f.id; it.per100 = p100(f); saveDay(dk); refreshAll(); } });
@@ -384,8 +389,7 @@ function openGrams({ food, g = null, confirmLabel = 'Hinzufügen', onConfirm, on
       if (!(x > 0)) { inp.focus(); toast('Bitte eine Menge eingeben'); return; }
       onConfirm(Math.round(x * 10) / 10); await closeOverlays(1);
     } else if (a.dataset.act === 'del') {
-      if (!await confirmDlg('Eintrag entfernen?', food.name)) return;
-      onDelete(); await closeOverlays(1);
+      await closeOverlays(1); onDelete();
     } else if (a.dataset.act === 'addValues') onAddValues();
   });
   upd();
@@ -468,9 +472,9 @@ function openDishEntry({ dk, mk, entry, isNew }) {
     else if (act === 'rmIng') { e.ingredients.splice(+a.dataset.i, 1); render(); }
     else if (act === 'addIng') pickIngredient(e.ingredients, render);
     else if (act === 'del') {
-      if (!await confirmDlg('Eintrag entfernen?', e.name)) return;
-      const md = getDay(dk).meals[mk]; md.items = md.items.filter(x => x.id !== e.id); saveDay(dk);
-      await closeOverlays(1); toast('Entfernt');
+      await closeOverlays(1);
+      const md = getDay(dk).meals[mk], orig = md.items.find(x => x.id === e.id);
+      if (orig) removeMealItem(dk, mk, orig);
     } else if (act === 'save') {
       if (!(dishFactor(e) > 0)) { toast('Bitte eine Menge angeben'); return; }
       const recipe = S.dishes.find(d => d.id === e.dishId);
@@ -667,7 +671,10 @@ function buildFoodExport(dk) {
     L.push(`${m.l.toUpperCase()} – ${nl(mealN(md))}`);
     for (const it of md.items) {
       const x = itemN(it);
-      if (it.type === 'dish') {
+      if (it.type === 'quick') {
+        L.push(`- ${it.name} (Schnell-Eintrag, geschätzt)${x.unknown ? ' [ohne Werte – bitte schätzen]' : ` (${f0(x.kcal)} kcal, P ${f0(x.p)} g${+it.n.c ? `, KH ${f0(x.c)} g` : ''}${+it.n.f ? `, F ${f0(x.f)} g` : ''})`}${it.contains ? ` – enthalten: ${it.contains}` : ''}`);
+        if (x.unknown) missing.push(`${it.name} (${m.l})`);
+      } else if (it.type === 'dish') {
         L.push(`- Gericht „${it.name}“ – ${dishAmountLabel(it)} (${f0(x.kcal)} kcal, P ${f0(x.p)} g)`);
         L.push(`    Zutaten ganzes Gericht${num(it.total) > 0 ? ` (fertig ${f0(num(it.total))} g)` : ''}: ${it.ingredients.map(i => `${i.name} ${f0(num(i.g))} g${i.per100 ? '' : ' [ohne Werte]'}`).join(', ')}`);
         it.ingredients.filter(i => !i.per100).forEach(i => missing.push(`${i.name} (${m.l})`));
@@ -785,3 +792,57 @@ async function scanAndAdd(onSaved) {
   else if (info === null) toast('Produkt nicht gefunden');
   openFoodEditor({ prefill: info || { barcode: code }, onSaved });
 }
+
+/* ---------- Entfernen mit Rückgängig ---------- */
+function removeMealItem(dk, mk, it) {
+  const md = getDay(dk).meals[mk];
+  const idx = md.items.indexOf(it); if (idx < 0) return;
+  md.items.splice(idx, 1); saveDay(dk); refreshAll();
+  showUndo(`${it.name} entfernt`, () => { md.items.splice(Math.min(idx, md.items.length), 0, it); saveDay(dk); refreshAll(); });
+}
+
+/* ---------- Schnell-Eintrag ---------- */
+function openQuickEntry({ dk, mk, entry = null }) {
+  const e = entry ? clone(entry) : { id: uid(), type: 'quick', name: '', contains: '', n: { kcal: '', p: '', c: '', f: '' } };
+  const sh = openSheet({ title: entry ? 'Schnell-Eintrag' : 'Schnell-Eintrag – ' + mealLabel(mk) });
+  const fld = (k, l, u) => `<label class="field"><span>${l}</span><span class="inp-g"><input data-n="${k}" inputmode="decimal" value="${e.n[k] === '' || e.n[k] == null ? '' : f1(e.n[k])}" placeholder="–"><em>${u}</em></span></label>`;
+  sh.content.innerHTML = `
+    <p class="muted" style="margin-bottom:12px">Für Essen, das du nicht abwiegen kannst – z. B. Mensa oder bei Freunden. Grob schätzen reicht, ein Foto hilft bei der Auswertung.</p>
+    <label class="field"><span>Was war es?</span><input data-f="name" value="${esc(e.name)}" placeholder="z. B. Mensa – Nudeln Bolognese"></label>
+    <label class="field"><span>Was war enthalten? (optional)</span><input data-f="contains" value="${esc(e.contains)}" placeholder="z. B. große Portion Nudeln, Hack, Tomatensauce, Käse"></label>
+    <div class="grid2">${fld('kcal', 'Kalorien (geschätzt)', 'kcal')}${fld('p', 'Eiweiß (geschätzt)', 'g')}${fld('c', 'Kohlenhydrate', 'g')}${fld('f', 'Fett', 'g')}</div>
+    <p class="muted" style="margin:-4px 0 6px">Leer lassen, wenn du keine Ahnung hast – dann schätze ich bei der Auswertung anhand von Beschreibung und Foto.</p>
+    <div class="sheet-actions">${entry ? `<button class="btn danger" data-a="del">${I.trash}</button>` : ''}<button class="btn primary" data-a="save">${entry ? 'Speichern' : 'Hinzufügen'}</button></div>`;
+  sh.content.addEventListener('click', async ev => {
+    const a = ev.target.closest('[data-a]'); if (!a) return;
+    const md = getDay(dk).meals[mk];
+    if (a.dataset.a === 'del') { await closeOverlays(1); const orig = md.items.find(x => x.id === e.id); if (orig) removeMealItem(dk, mk, orig); return; }
+    e.name = $('[data-f=name]', sh.content).value.trim();
+    e.contains = $('[data-f=contains]', sh.content).value.trim();
+    if (!e.name) { $('[data-f=name]', sh.content).focus(); toast('Bitte kurz beschreiben, was es war'); return; }
+    $$('[data-n]', sh.content).forEach(i => { const v = num(i.value); e.n[i.dataset.n] = isNaN(v) ? '' : v; });
+    if (e.n.kcal === '' && (e.n.p !== '' || e.n.c !== '' || e.n.f !== '')) e.n.kcal = Math.round((+e.n.p || 0) * 4 + (+e.n.c || 0) * 4 + (+e.n.f || 0) * 9);
+    const idx = md.items.findIndex(x => x.id === e.id);
+    if (idx >= 0) md.items[idx] = e; else md.items.push(e);
+    saveDay(dk); await closeOverlays(1); if (!entry) toast(`${e.name} hinzugefügt`);
+  });
+  if (!entry) setTimeout(() => $('[data-f=name]', sh.content).focus(), 300);
+}
+
+/* ---------- Wischen zwischen Tagen ---------- */
+(() => {
+  let sx = 0, sy = 0, st = 0, track = false;
+  const app = document.getElementById('app');
+  app.addEventListener('touchstart', e => {
+    if (S.view !== 'diary' || e.touches.length !== 1 || stack.length) { track = false; return; }
+    sx = e.touches[0].clientX; sy = e.touches[0].clientY; st = Date.now(); track = true;
+  }, { passive: true });
+  app.addEventListener('touchend', e => {
+    if (!track) return; track = false;
+    const t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy;
+    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.8 || Date.now() - st > 700) return;
+    S.sel = keyOf(addDays(fromKey(S.sel), dx < 0 ? 1 : -1));
+    app.classList.remove('swipe-l', 'swipe-r'); void app.offsetWidth;
+    renderMain(); app.classList.add(dx < 0 ? 'swipe-l' : 'swipe-r');
+  }, { passive: true });
+})();
