@@ -2,7 +2,7 @@
 /* =========================================================
    Kraftbuch – Kern: Helfer, Speicher, Overlays, Picker
    ========================================================= */
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 
 /* ---------- Helfer ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -99,6 +99,7 @@ const I = {
   edit: sv('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
   info: sv('<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/>'),
   up: sv('<path d="M6 15l6-6 6 6"/>'),
+  backspace: sv('<path d="M9 5h11v14H9l-6-7z"/><path d="M12.5 9.5l5 5M17.5 9.5l-5 5"/>'),
   barcode: sv('<path d="M4 5v14M7 5v14M10.5 5v14M13 5v14M16.5 5v14M20 5v14"/>'),
 };
 
@@ -148,7 +149,7 @@ const S = {
   exercises: [], plans: [], workouts: [], active: null, apMap: {},
   settings: {
     goals: clone(DEFAULT_GOALS),
-    gym: { rir: true, warmups: true, wakeLock: true, vibrate: true, sound: false, activePlan: null },
+    gym: { rir: true, warmups: true, wakeLock: true, vibrate: true, sound: false, activePlan: null, plates: [20, 15, 10, 5, 2.5, 1.25] },
   },
   // UI
   sel: todayKey(), view: 'training', foodFilter: 'all', foodQuery: '', dishQuery: '', exQuery: '',
@@ -253,27 +254,82 @@ function toast(msg) {
 }
 
 /* ---------- Zahlen-Picker ---------- */
-function pickNumber({ title, value, options, unit = '', decimals = true, sub = null, cols = 5, extra = null }) {
-  // options: [{v, label, sub}] ; returns number or null
+function pickNumber({ title, value, options, unit = '', decimals = true, sub = null, extra = null, visual = null }) {
+  // Vollbild-Zahlenauswahl: scrollbare Liste + Zahlenfeld. options: [{v, label, sub}]; visual(n) → HTML (z. B. Hantel)
   return new Promise(resolve => {
     let result = null;
-    const sh = openSheet({ title });
-    sh.content.innerHTML = `
-      <div class="pick-in"><div class="inp-g inp-big"><input inputmode="${decimals ? 'decimal' : 'numeric'}" value="${isNaN(num(value)) ? '' : f2(value)}" placeholder="0"><em>${esc(unit)}</em></div><button class="btn primary" data-ok>OK</button></div>
-      ${sub ? `<p class="muted pick-sub">${sub}</p>` : ''}
-      <div class="pick-grid" style="grid-template-columns:repeat(${cols},1fr)">${options.map(o => `<button class="pick ${Math.abs(o.v - num(value)) < 1e-6 ? 'on' : ''}" data-v="${o.v}"><b>${esc(o.label ?? f2(o.v))}</b>${o.sub ? `<small>${esc(o.sub)}</small>` : ''}</button>`).join('')}</div>
-      ${extra ? `<div class="pick-extra">${extra.map((x, i) => `<button class="btn ghost" data-x="${i}">${esc(x.label)}</button>`).join('')}</div>` : ''}`;
-    const inp = $('input', sh.content);
-    const ok = () => { const v = num(inp.value); if (isNaN(v)) { inp.focus(); return; } result = v; closeOverlays(1); };
-    $('[data-ok]', sh.content).onclick = ok;
-    inp.addEventListener('keydown', e => { if (e.key === 'Enter') ok(); });
-    inp.addEventListener('focus', () => inp.select());
-    sh.content.addEventListener('click', e => {
-      const b = e.target.closest('[data-v]'); if (b) { result = +b.dataset.v; closeOverlays(1); return; }
-      const x = e.target.closest('[data-x]'); if (x) { result = extra[+x.dataset.x].value; closeOverlays(1); }
+    const fmt = n => decimals ? f2(n) : String(Math.round(n));
+    let cur = num(value);
+    const opts = options.slice();
+    if (!isNaN(cur) && !opts.some(o => Math.abs(o.v - cur) < 1e-6)) opts.push({ v: cur });
+    opts.sort((x, y) => x.v - y.v);
+    let str = isNaN(cur) ? '' : fmt(cur);
+    let fresh = true, ignoreUntil = 0;
+    const el = document.createElement('div');
+    el.className = 'ov np';
+    el.innerHTML = `
+      <header class="np-h"><button class="np-tbtn" data-n="cancel">Abbrechen</button><div class="np-title"><b>${esc(title)}</b>${sub ? `<small>${sub}</small>` : ''}</div>
+        <span class="np-extra">${extra ? extra.map((x, i) => `<button class="np-tbtn" data-x="${i}">${esc(x.label)}</button>`).join('') : ''}</span></header>
+      <div class="np-list"><div class="np-sp"></div>${opts.map(o => `<button class="np-it" data-v="${o.v}"><b>${esc(o.label ?? fmt(o.v))}${unit && !o.label ? ` ${esc(unit)}` : ''}</b>${o.sub ? `<small>${esc(o.sub)}</small>` : ''}</button>`).join('')}<div class="np-sp"></div></div>
+      <div class="np-pad">
+        <div class="np-row"><div class="np-vis"></div><div class="np-val"><b></b>${unit ? `<em>${esc(unit)}</em>` : ''}</div><button class="np-ok" data-n="ok" aria-label="Bestätigen">${I.check}</button></div>
+        <div class="np-keys">${['1', '2', '3', '4', '5', '6', '7', '8', '9', decimals ? ',' : '', '0', 'del'].map(k => k ? `<button class="np-k" data-k="${k}">${k === 'del' ? I.backspace : k}</button>` : '<span></span>').join('')}</div>
+      </div>`;
+    const list = $('.np-list', el), valEl = $('.np-val b', el), vis = $('.np-vis', el);
+    const update = () => {
+      const n = num(str);
+      valEl.textContent = str === '' ? '0' : str;
+      if (visual) vis.innerHTML = visual(isNaN(n) ? 0 : n);
+      $$('.np-it', list).forEach(b => b.classList.toggle('on', !isNaN(n) && Math.abs(+b.dataset.v - n) < 1e-6));
+    };
+    const scrollTo = (n, smooth) => {
+      const items = $$('.np-it', list); if (!items.length) return;
+      let best = items[0], bd = Infinity;
+      for (const b of items) { const d = Math.abs(+b.dataset.v - n); if (d < bd) { bd = d; best = b; } }
+      ignoreUntil = Date.now() + (smooth ? 700 : 300);
+      list.scrollTo({ top: best.offsetTop - list.clientHeight / 2 + best.offsetHeight / 2, behavior: smooth ? 'smooth' : 'auto' });
+    };
+    let st;
+    list.addEventListener('scroll', () => {
+      clearTimeout(st);
+      st = setTimeout(() => {
+        if (Date.now() < ignoreUntil) return;
+        const mid = list.scrollTop + list.clientHeight / 2;
+        let best = null, bd = Infinity;
+        for (const b of $$('.np-it', list)) { const d = Math.abs(b.offsetTop + b.offsetHeight / 2 - mid); if (d < bd) { bd = d; best = b; } }
+        if (best) { str = fmt(+best.dataset.v); fresh = true; update(); }
+      }, 110);
     });
-    sh.addEventListener('closed', () => resolve(result));
-    const on = $('.pick.on', sh.content); if (on) setTimeout(() => on.scrollIntoView({ block: 'center' }), 280);
+    const ok = () => { const n = num(str === '' ? '0' : str); if (isNaN(n)) return; result = n; closeOverlays(1); };
+    el.addEventListener('click', e => {
+      const it = e.target.closest('.np-it');
+      if (it) { const v = +it.dataset.v; if (it.classList.contains('on')) { ok(); return; } str = fmt(v); fresh = true; update(); scrollTo(v, true); return; }
+      const k = e.target.closest('[data-k]');
+      if (k) {
+        const key = k.dataset.k;
+        if (key === 'del') { str = fresh ? '' : str.slice(0, -1); fresh = false; }
+        else if (key === ',') { if (fresh) { str = '0,'; fresh = false; } else if (!str.includes(',')) str = (str || '0') + ','; }
+        else {
+          if (fresh) { str = key; fresh = false; }
+          else if (str.length < 6 && !(str.includes(',') && str.split(',')[1].length >= 2)) str = str === '0' ? key : str + key;
+        }
+        update();
+        const n = num(str); if (!isNaN(n)) scrollTo(n, false);
+        return;
+      }
+      const b = e.target.closest('[data-n]');
+      if (b) { if (b.dataset.n === 'ok') ok(); else closeOverlays(1); return; }
+      const x = e.target.closest('[data-x]');
+      if (x) { result = extra[+x.dataset.x].value; closeOverlays(1); }
+    });
+    el.addEventListener('closed', () => resolve(result));
+    pushOverlay(el);
+    update();
+    requestAnimationFrame(() => {
+      const sp = Math.max(0, list.clientHeight / 2 - 31);
+      $$('.np-sp', list).forEach(x => { x.style.height = sp + 'px'; });
+      scrollTo(isNaN(cur) ? (opts[Math.floor(opts.length / 2)] || { v: 0 }).v : cur, false);
+    });
   });
 }
 

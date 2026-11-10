@@ -65,6 +65,9 @@ async function openSettings() {
         ${tog('vibrate', 'Vibration bei Pausenende', '')}
         ${tog('sound', 'Ton bei Pausenende', '')}
       </div>
+      <div class="list-label">Hantelscheiben in deinem Gym</div>
+      <div class="chips" style="margin-top:0">${ALL_PLATES.map(p => `<button class="chip ${(gs.plates || []).includes(p) ? 'on' : ''}" data-plate="${p}">${f2(p)} kg</button>`).join('')}</div>
+      <p class="muted" style="margin:-6px 0 0">Für die Hantel-Anzeige beim Gewicht: Es werden möglichst große Scheiben genommen.</p>
 
       <div class="sec-h"><h3>Daten übernehmen</h3></div>
       <div class="list">
@@ -81,6 +84,8 @@ async function openSettings() {
       <p class="muted">${est}Version ${APP_VERSION}</p>`;
   };
   sh.content.addEventListener('click', async e => {
+    const pb = e.target.closest('[data-plate]');
+    if (pb) { const p = +pb.dataset.plate, arr = S.settings.gym.plates || []; S.settings.gym.plates = arr.includes(p) ? arr.filter(x => x !== p) : [...arr, p]; saveSettings(); render(); return; }
     const t = e.target.closest('[data-t]');
     if (t) { S.settings.gym[t.dataset.t] = !S.settings.gym[t.dataset.t]; saveSettings(); render(); return; }
     const a = e.target.closest('[data-a]'); if (!a) return;

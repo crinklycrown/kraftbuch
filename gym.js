@@ -119,17 +119,32 @@ function roundW(v, w, dir = 0) {
 }
 
 /* ---------- Scheibenrechner ---------- */
-const PLATES = [25, 20, 15, 10, 5, 2.5, 1.25];
+const ALL_PLATES = [25, 20, 15, 10, 5, 2.5, 1.25];
+const userPlates = () => (S.settings.gym.plates || [20, 15, 10, 5, 2.5, 1.25]).slice().sort((a, b) => b - a);
 const PLATE_COL = { 25: '#e5484d', 20: '#3d9bff', 15: '#f5c84c', 10: '#35d07f', 5: '#e9edf3', 2.5: '#9aa3b2', 1.25: '#6b7385' };
 function platesFor(perSide) {
   let rest = Math.round(perSide * 100) / 100; const out = [];
-  for (const p of PLATES) while (rest >= p - 1e-6) { out.push(p); rest = Math.round((rest - p) * 100) / 100; }
+  for (const p of userPlates()) while (rest >= p - 1e-6) { out.push(p); rest = Math.round((rest - p) * 100) / 100; }
   return { plates: out, rest };
 }
 function platesHtml(v, w, label) {
   if (!v || v.load !== 'side' || isNaN(num(w))) return '';
   const { plates, rest } = platesFor(num(w));
   return `<div class="plates"><span class="pl-l">${esc(label)}</span>${plates.length ? plates.map(p => `<span class="plate" style="--pc:${PLATE_COL[p]}">${f2(p)}</span>`).join('') : '<span class="muted">nur Stange</span>'}${rest > 0 ? `<span class="muted">+ ${f2(rest)} kg?</span>` : ''}</div>`;
+}
+
+const PLATE_GEO = { 25: [13, 56], 20: [12, 56], 15: [11, 50], 10: [10, 44], 5: [8, 34], 2.5: [7, 28], 1.25: [6, 24] };
+function barbellSvg(v, w) {
+  if (!v || v.load !== 'side') {
+    const t = v && v.load === 'total' && +v.base ? `${f2(total(v, w))} kg gesamt` : v && v.load === 'hand' ? 'pro Hantel' : v && v.load === 'extra' ? 'Zusatzgewicht' : '';
+    return t ? `<span class="np-vis-t">${t}</span>` : '';
+  }
+  const { plates, rest } = platesFor(w);
+  let x = 26; const H = 64, cy = H / 2;
+  const pl = plates.map(p => { const [pw, ph] = PLATE_GEO[p]; const r = `<rect x="${x}" y="${cy - ph / 2}" width="${pw}" height="${ph}" rx="2.5" fill="${PLATE_COL[p]}"/>`; x += pw + 1.5; return r; }).join('');
+  const W = Math.max(100, x + 14);
+  return `<svg class="bb" viewBox="0 0 ${W} ${H}"><rect x="0" y="${cy - 3.5}" width="${W}" height="7" rx="3.5" fill="#5d6574"/><rect x="15" y="${cy - 13}" width="9" height="26" rx="2" fill="#8b93a3"/>${pl}</svg>
+    <span class="np-vis-t">${plates.length ? plates.map(f2).join(' + ') : 'nur Stange'}${rest > 0 ? ` <i>+${f2(rest)}?</i>` : ''} · ${f2(total(v, w))} kg</span>`;
 }
 
 /* ---------- Pausen messen ---------- */
@@ -629,12 +644,12 @@ function beep() {
 function weightOptions(v, cur) {
   const step = +v.step || 2.5;
   const c = isNaN(num(cur)) ? (knownWeights(v.id).slice(-1)[0] ?? (v.load === 'side' ? 10 : 20)) : num(cur);
-  const set = new Set(knownWeights(v.id).filter(x => Math.abs(x - c) <= step * 8));
-  for (let k = -7; k <= 8; k++) { const x = Math.round((roundW(v, c, 0) + k * step) * 100) / 100; if (x >= 0) set.add(x); }
+  const set = new Set(knownWeights(v.id).filter(x => Math.abs(x - c) <= step * 30));
+  for (let k = -30; k <= 30; k++) { const x = Math.round((roundW(v, c, 0) + k * step) * 100) / 100; if (x >= 0) set.add(x); }
   set.add(c);
-  return [...set].sort((a, b) => a - b).map(x => ({ v: x, label: wTxt(v, x), sub: v.load === 'side' || (v.load === 'total' && +v.base) ? f2(total(v, x)) : '' }));
+  return [...set].sort((a, b) => a - b).map(x => ({ v: x, label: `${wTxt(v, x)} kg`, sub: v.load === 'side' || (v.load === 'total' && +v.base) ? `${f2(total(v, x))} kg gesamt` : '' }));
 }
-const repOptions = (max = 30) => Array.from({ length: max }, (_, i) => ({ v: i + 1 }));
+const repOptions = (max = 50) => Array.from({ length: max }, (_, i) => ({ v: i + 1 }));
 async function workoutClick(e, render) {
   const a = e.target.closest('[data-a]'); if (!a) return;
   const A = S.active; if (!A) return;
@@ -648,7 +663,7 @@ async function workoutClick(e, render) {
     case 'goto': A.cur = i; save(); break;
     case 'w': {
       const s = it.sets[i];
-      const val = await pickNumber({ title: `Satz ${i + 1} · Gewicht`, value: s.w, unit: 'kg', options: weightOptions(v, s.w), cols: 4, sub: v.load === 'side' ? `Pro Seite – kleine Zahl = Gesamtgewicht inkl. ${f2(v.base)} kg Stange. Scheiben für ${wTxt(v, s.w)}: ${platesFor(num(s.w) || 0).plates.map(f2).join(' + ') || '–'}` : v.load === 'extra' ? 'Zusatzgewicht (0 = nur Körpergewicht)' : null });
+      const val = await pickNumber({ title: `Satz ${i + 1} · Gewicht`, value: s.w, unit: 'kg', options: weightOptions(v, s.w), sub: v.load === 'side' ? `pro Seite · Stange ${f2(v.base)} kg` : v.load === 'extra' ? 'Zusatzgewicht' : null, visual: n => barbellSvg(v, n) });
       if (val === null) return;
       const old = s.w;
       s.w = val; s.sug = false;
@@ -657,7 +672,7 @@ async function workoutClick(e, render) {
     }
     case 'r': {
       const s = it.sets[i];
-      const val = await pickNumber({ title: `Satz ${i + 1} · Wiederholungen${v.uni ? ' pro Seite' : ''}`, value: s.r, decimals: false, options: repOptions(Math.max(30, ex.repMax + 5)), cols: 6, sub: `Ziel ${ex.repMin}–${ex.repMax}` });
+      const val = await pickNumber({ title: `Satz ${i + 1} · Wdh${v.uni ? ' pro Seite' : ''}`, value: s.r, decimals: false, options: repOptions(Math.max(30, ex.repMax + 5)), cols: 6, sub: `Ziel ${ex.repMin}–${ex.repMax}` });
       if (val === null) return;
       s.r = Math.round(val); s.sug = false; save(); break;
     }
@@ -682,7 +697,7 @@ async function workoutClick(e, render) {
     case 'ww': {
       const first = it.sets.find(s => !isNaN(num(s.w)));
       const warms = warmSets(ex, v, first.w);
-      const val = await pickNumber({ title: `Aufwärmsatz ${i + 1} · Gewicht`, value: warms[i].w, unit: 'kg', options: weightOptions(v, warms[i].w), cols: 4, sub: 'Wird als Prozent vom Arbeitsgewicht gespeichert und passt sich künftig automatisch an.' });
+      const val = await pickNumber({ title: `Aufwärmsatz ${i + 1} · Gewicht`, value: warms[i].w, unit: 'kg', options: weightOptions(v, warms[i].w), sub: 'wird als % vom Arbeitsgewicht gespeichert', visual: n => barbellSvg(v, n) });
       if (val === null) return;
       const T = total(v, num(first.w));
       const tpl = clone(warmTemplate(ex));
@@ -1191,7 +1206,7 @@ function openWorkoutDetail(w) {
     const a = e.target.closest('[data-a]'); if (!a) return;
     const it = w.items[+a.dataset.i], s = it && it.sets[+a.dataset.s];
     const v = it && findVar(it.varId).v;
-    if (a.dataset.a === 'w') { const val = await pickNumber({ title: 'Gewicht', value: s.w, unit: 'kg', options: weightOptions(v, s.w), cols: 4 }); if (val !== null) { s.w = val; saveWorkout(w); render(); } }
+    if (a.dataset.a === 'w') { const val = await pickNumber({ title: 'Gewicht', value: s.w, unit: 'kg', options: weightOptions(v, s.w), visual: n => barbellSvg(v, n) }); if (val !== null) { s.w = val; saveWorkout(w); render(); } }
     else if (a.dataset.a === 'r') { const val = await pickNumber({ title: 'Wiederholungen', value: s.r, decimals: false, options: repOptions(30), cols: 6 }); if (val !== null) { s.r = Math.round(val); saveWorkout(w); render(); } }
     else if (a.dataset.a === 'rm') { it.sets.splice(+a.dataset.s, 1); if (!it.sets.length) w.items.splice(+a.dataset.i, 1); saveWorkout(w); render(); }
     else if (a.dataset.a === 'ex') openExerciseDetail(findVar(it.varId).ex);
