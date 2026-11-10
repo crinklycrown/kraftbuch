@@ -1,5 +1,5 @@
 // Kraftbuch – Service Worker (offline-Betrieb)
-const CACHE = 'kraftbuch-v4';
+const CACHE = 'kraftbuch-v5';
 const ASSETS = ['./', './index.html', './app.js', './foods.js', './core.js', './food.js', './gym.js', './data.js', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -27,4 +27,13 @@ self.addEventListener('fetch', e => {
       return cached || network;
     })
   );
+});
+
+// Tipp auf Benachrichtigung öffnet die App
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(cs => {
+    const c = cs.find(x => x.url.includes('/kraftbuch/'));
+    return c ? c.focus() : self.clients.openWindow('./');
+  }));
 });

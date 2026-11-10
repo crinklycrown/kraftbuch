@@ -536,10 +536,25 @@ function openWorkout() {
   ov.content.addEventListener('click', e => workoutClick(e, render));
   render();
 }
+let restTO = null;
+function armRestTimeout() {
+  clearTimeout(restTO);
+  const t = S.active && S.active.timer;
+  if (t && !t.rang) restTO = setTimeout(gymTick, Math.max(0, t.end - Date.now()) + 60);
+}
 function setTimer(sec) {
   const A = S.active; if (!A) return;
   A.timer = { end: Date.now() + sec * 1000, dur: sec, rang: false };
-  saveActive(); updateTimerBar();
+  saveActive(); updateTimerBar(); armRestTimeout();
+}
+async function notifyRestOver() {
+  if (!S.settings.gym.notify || !('Notification' in window) || Notification.permission !== 'granted') return;
+  const A = S.active, it = A && A.items[A.cur], ex = it && exById(it.exId);
+  const next = it && it.sets.findIndex(s => !s.done);
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    await reg.showNotification('Pause vorbei 💪', { body: ex ? `${ex.name}${next >= 0 ? ` – Satz ${next + 1}` : ''}` : 'Weiter geht’s', tag: 'rest', renotify: true, vibrate: [400, 150, 400, 150, 400], icon: 'icon-192.png', badge: 'icon-192.png', requireInteraction: false });
+  } catch { }
 }
 function updateTimerBar() {
   const bar = wkPanel && $('.timer-bar', wkPanel.content); if (!bar) return;
@@ -579,7 +594,7 @@ function gymTick() {
     if (document.visibilityState === 'visible') {
       if (S.settings.gym.vibrate && navigator.vibrate) navigator.vibrate([400, 150, 400, 150, 400]);
       if (S.settings.gym.sound) beep();
-    }
+    } else notifyRestOver();
   }
   updateTimerBar(); updateTimerOverlay(); renderActiveBar();
 }
@@ -589,7 +604,7 @@ function adjustTimer(delta) {
   t.end = Math.max(now, (t.end < now ? now : t.end) + delta * 1000);
   t.dur = Math.max(5, t.dur + delta, Math.ceil((t.end - now) / 1000));
   t.rang = t.end <= now;
-  saveActive(); gymTick();
+  saveActive(); gymTick(); armRestTimeout();
 }
 let tmrOv = null;
 function openTimer(defaultRest) {

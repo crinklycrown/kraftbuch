@@ -2,7 +2,7 @@
 /* =========================================================
    Kraftbuch – Kern: Helfer, Speicher, Overlays, Picker
    ========================================================= */
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.4.0';
 
 /* ---------- Helfer ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -100,6 +100,7 @@ const I = {
   info: sv('<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/>'),
   up: sv('<path d="M6 15l6-6 6 6"/>'),
   backspace: sv('<path d="M9 5h11v14H9l-6-7z"/><path d="M12.5 9.5l5 5M17.5 9.5l-5 5"/>'),
+  pill: sv('<rect x="3" y="8.5" width="18" height="7" rx="3.5" transform="rotate(-35 12 12)"/><path d="M10 9.2l4 5.6"/>'),
   barcode: sv('<path d="M4 5v14M7 5v14M10.5 5v14M13 5v14M16.5 5v14M20 5v14"/>'),
 };
 
@@ -149,7 +150,8 @@ const S = {
   exercises: [], plans: [], workouts: [], active: null, apMap: {},
   settings: {
     goals: clone(DEFAULT_GOALS),
-    gym: { rir: true, warmups: true, wakeLock: true, vibrate: true, sound: false, activePlan: null, plates: [20, 15, 10, 5, 2.5, 1.25] },
+    creatin: { on: true, time: '20:00' },
+    gym: { notify: false, rir: true, warmups: true, wakeLock: true, vibrate: true, sound: false, activePlan: null, plates: [20, 15, 10, 5, 2.5, 1.25] },
   },
   // UI
   sel: todayKey(), view: 'training', foodFilter: 'all', foodQuery: '', dishQuery: '', exQuery: '',

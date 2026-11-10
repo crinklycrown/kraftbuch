@@ -136,6 +136,8 @@ function renderDiary() {
       ${n.unknown ? `<span class="pill warn">${n.unknown} ${n.unknown === 1 ? 'Eintrag' : 'Einträge'} ohne Werte</span>` : ''}
       <button class="pill pill-btn" data-act="weight">${I.scale}${num(day.weight) > 0 ? `<b>${f1(day.weight)} kg</b>` : 'Gewicht'}</button>
     </div>
+    ${S.settings.creatin.on ? (() => { const c = day.creatin, due = !c && S.sel === tk && creatinDue(); return `<button class="crea ${c ? 'done' : ''} ${due ? 'due' : ''}" data-act="creatin"><span class="crea-ck">${c ? I.check : ''}</span><span class="crea-main"><b>${c ? 'Creatin genommen' : 'Creatin genommen?'}</b><small>${c ? `um ${timeOf(c)} Uhr · antippen zum Rückgängigmachen` : due ? `Erinnerung ${esc(S.settings.creatin.time)} Uhr – noch nicht genommen` : 'Antippen zum Abhaken'}</small></span>${I.pill}</button>`; })() : ''}
+
     <section class="meals">${MEALS.map(m => {
       const md = day.meals[m.k], mn = mealN(md);
       const names = md.items.map(it => it.name).join(', ');
@@ -163,6 +165,12 @@ async function diaryClick(a, act) {
   else if (act === 'share') openExport({ dk: S.sel, what: 'both' });
   else if (act === 'copy') { toast(await copyText(buildExport({ dk: S.sel, what: 'food', range: 'day' })) ? 'Ernährung kopiert' : 'Kopieren nicht möglich'); }
   else if (act === 'settings') openSettings();
+  else if (act === 'creatin') {
+    const d = getDay(S.sel);
+    if (d.creatin) { if (!await confirmDlg('Creatin-Haken entfernen?', `Für ${longDate(S.sel)}.`, 'Entfernen')) return; delete d.creatin; }
+    else { const now = new Date(); d.creatin = S.sel === todayKey() ? now.getTime() : fromKey(S.sel).setHours(now.getHours(), now.getMinutes()); if (navigator.vibrate) navigator.vibrate(40); }
+    saveDay(S.sel); renderMain();
+  }
   else if (act === 'trainToggle') {
     const d = getDay(S.sel), now = isTrainDay(S.sel);
     const auto = workoutsOn(S.sel).length > 0;
@@ -185,6 +193,10 @@ async function diaryClick(a, act) {
     if (v === -1) delete d.weight; else if (v > 20 && v < 400) d.weight = v; else { toast('Ungültiges Gewicht'); return; }
     saveDay(S.sel); renderMain();
   }
+}
+function creatinDue() {
+  const [h, m] = (S.settings.creatin.time || '20:00').split(':').map(Number);
+  const now = new Date(); return now.getHours() * 60 + now.getMinutes() >= h * 60 + (m || 0);
 }
 function lastBodyWeight(before) {
   const ks = Object.keys(S.days).filter(k => k <= before && num(S.days[k].weight) > 0).sort();
@@ -646,6 +658,7 @@ function buildFoodExport(dk) {
   const nl = nutLine;
   L.push(`ERNÄHRUNG – ${WDL[d.getDay()]}, ${numDate(dk)} (KW ${isoWeek(d)}) · ${isTrainDay(dk) ? 'Trainingstag' : 'Ruhetag'}`);
   if (num(day.weight) > 0) L.push(`Körpergewicht: ${f1(day.weight)} kg`);
+  if (S.settings.creatin.on) L.push(`Creatin: ${day.creatin ? `genommen (${timeOf(day.creatin)} Uhr)` : 'nicht genommen'}`);
   const missing = [];
   for (const m of MEALS) {
     const md = day.meals[m.k];
@@ -684,6 +697,7 @@ function buildFoodWeekExport(mon) {
   }
   if (cnt) L.push('', `Durchschnitt (${cnt} Tage): ${nutLine({ kcal: sum.kcal / cnt, p: sum.p / cnt, c: sum.c / cnt, f: sum.f / cnt })}`);
   if (weights.length) L.push(`Körpergewicht: ${weights.join(' | ')} kg`);
+  if (S.settings.creatin.on) { let n = 0; for (let i = 0; i < 7; i++) { const d = S.days[keyOf(addDays(mon, i))]; if (d && d.creatin) n++; } L.push(`Creatin: an ${n} von 7 Tagen genommen`); }
   L.push('', 'Details pro Tag:');
   for (let i = 0; i < 7; i++) { const k = keyOf(addDays(mon, i)); if (dayHasData(k)) L.push('', buildFoodExport(k)); }
   return L.join('\n');

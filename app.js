@@ -43,7 +43,7 @@ async function init() {
     for (const [k, v] of await DB.entries('kv')) {
       if (k.startsWith('day:')) S.days[k.slice(4)] = v;
       else if (k.startsWith('w:')) S.workouts.push(v);
-      else if (k === 'settings') S.settings = { ...S.settings, ...v, goals: { train: { ...DEFAULT_GOALS.train, ...(v.goals?.train || {}) }, rest: { ...DEFAULT_GOALS.rest, ...(v.goals?.rest || {}) } }, gym: { ...S.settings.gym, ...(v.gym || {}) } };
+      else if (k === 'settings') S.settings = { ...S.settings, ...v, goals: { train: { ...DEFAULT_GOALS.train, ...(v.goals?.train || {}) }, rest: { ...DEFAULT_GOALS.rest, ...(v.goals?.rest || {}) } }, gym: { ...S.settings.gym, ...(v.gym || {}) }, creatin: { ...S.settings.creatin, ...(v.creatin || {}) } };
       else if (k === 'active') S.active = v;
       else if (k in S) S[k] = v;
     }

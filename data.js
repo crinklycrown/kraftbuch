@@ -64,10 +64,17 @@ async function openSettings() {
         ${tog('wakeLock', 'Bildschirm im Training anlassen', 'Damit der Timer sichtbar bleibt und am Ende vibriert')}
         ${tog('vibrate', 'Vibration bei Pausenende', '')}
         ${tog('sound', 'Ton bei Pausenende', '')}
+        ${tog('notify', 'Benachrichtigung bei Pausenende', 'Wenn du die App während der Pause verlässt (z. B. WhatsApp). Funktioniert meistens, aber nicht garantiert.')}
       </div>
       <div class="list-label">Hantelscheiben in deinem Gym</div>
       <div class="chips" style="margin-top:0">${ALL_PLATES.map(p => `<button class="chip ${(gs.plates || []).includes(p) ? 'on' : ''}" data-plate="${p}">${f2(p)} kg</button>`).join('')}</div>
       <p class="muted" style="margin:-6px 0 0">Für die Hantel-Anzeige beim Gewicht: Es werden möglichst große Scheiben genommen.</p>
+
+      <div class="sec-h"><h3>${I.pill} Creatin</h3></div>
+      <div class="list">
+        <button class="row" data-c="on"><span class="row-main"><b>Creatin im Tagebuch</b><small>Knopf zum Abhaken pro Tag</small></span><span class="switch ${S.settings.creatin.on ? 'on' : ''}"><i></i></span></button>
+        ${S.settings.creatin.on ? `<label class="row"><span class="row-main"><b>Erinnerung ab</b><small>Danach wird der Knopf orange, solange nicht abgehakt</small></span><input type="time" class="time-in" data-ctime value="${esc(S.settings.creatin.time)}"></label>` : ''}
+      </div>
 
       <div class="sec-h"><h3>Daten übernehmen</h3></div>
       <div class="list">
@@ -84,6 +91,14 @@ async function openSettings() {
       <p class="muted">${est}Version ${APP_VERSION}</p>`;
   };
   sh.content.addEventListener('click', async e => {
+    if (e.target.closest('[data-c=on]')) { S.settings.creatin.on = !S.settings.creatin.on; saveSettings(); render(); renderMain(); return; }
+    const tn = e.target.closest('[data-t=notify]');
+    if (tn && !S.settings.gym.notify) {
+      if (!('Notification' in window)) { toast('Benachrichtigungen werden hier nicht unterstützt'); return; }
+      const p = await Notification.requestPermission();
+      if (p !== 'granted') { toast('Benachrichtigungen wurden nicht erlaubt – in den Android-Einstellungen änderbar'); return; }
+      S.settings.gym.notify = true; saveSettings(); render(); toast('Benachrichtigung aktiviert'); return;
+    }
     const pb = e.target.closest('[data-plate]');
     if (pb) { const p = +pb.dataset.plate, arr = S.settings.gym.plates || []; S.settings.gym.plates = arr.includes(p) ? arr.filter(x => x !== p) : [...arr, p]; saveSettings(); render(); return; }
     const t = e.target.closest('[data-t]');
@@ -101,6 +116,7 @@ async function openSettings() {
     }
   });
   sh.content.addEventListener('change', async e => {
+    if (e.target.matches('[data-ctime]')) { S.settings.creatin.time = e.target.value || '20:00'; saveSettings(); renderMain(); return; }
     if (e.target.matches('[data-import]')) { const f = e.target.files[0]; e.target.value = ''; if (f) importBackup(f); }
     if (e.target.matches('[data-ap]')) {
       const f = e.target.files[0]; e.target.value = ''; if (!f) return;
