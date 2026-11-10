@@ -14,6 +14,7 @@ function renderMain() {
   const v = VIEWS[S.view] || VIEWS.training;
   document.body.dataset.mode = v.mode;
   v.render();
+  renderActiveBar();
   $('#nav').innerHTML = Object.entries(VIEWS).map(([k, x], i) =>
     `${i === 2 ? '<span class="nav-sep"></span>' : ''}<button class="${S.view === k ? 'on' : ''} m-${x.mode}" data-view="${k}">${x.icon}<span>${x.l}</span></button>`).join('');
 }
@@ -23,6 +24,7 @@ $('#nav').addEventListener('click', e => {
   try { localStorage.setItem('kb-view', S.view); } catch { }
   renderMain(); window.scrollTo(0, 0);
 });
+$('#activeBar').addEventListener('click', () => openWorkout());
 $('#app').addEventListener('click', e => {
   const a = e.target.closest('[data-act]'); if (!a) return;
   VIEWS[S.view].click(a, a.dataset.act);

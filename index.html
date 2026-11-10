@@ -440,10 +440,49 @@ label.row{cursor:pointer}
 .row.file-btn input{position:absolute;inset:0;opacity:0}
 .row.file-btn{position:relative}
 .row>svg:first-child{color:var(--ac)}
+
+/* Aktives Training & Timer (hellblau) */
+:root{--sky:#7cc4ff;--sky-tx:#04213b}
+.active-bar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(70px + env(safe-area-inset-bottom));width:calc(100% - 24px);max-width:536px;z-index:19;display:flex;align-items:center;gap:12px;background:var(--sky);color:var(--sky-tx);border-radius:18px;padding:11px 14px;text-align:left;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+.active-bar[hidden]{display:none}
+.active-bar .pulse{background:var(--sky-tx);box-shadow:0 0 0 0 rgba(4,33,59,.5);animation:pulse2 1.6s infinite}
+@keyframes pulse2{70%{box-shadow:0 0 0 9px rgba(4,33,59,0)}100%{box-shadow:0 0 0 0 rgba(4,33,59,0)}}
+.ab-main{flex:1;min-width:0;display:flex;flex-direction:column}
+.ab-main b{font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ab-main small{font-size:12.5px;opacity:.75}
+.ab-timer{display:inline-flex;align-items:center;gap:5px;font-weight:750;font-size:17px;font-variant-numeric:tabular-nums;background:rgba(4,33,59,.12);padding:5px 10px;border-radius:11px}
+.ab-timer svg{width:17px;height:17px}
+.ab-go svg{width:20px;height:20px}
+body.has-active #app{padding-bottom:calc(170px + env(safe-area-inset-bottom))}
+.timer-bar.run{background:var(--sky);border-color:var(--sky);color:var(--sky-tx)}
+.timer-bar.run svg{color:var(--sky-tx)}
+.timer-bar.run small{color:var(--sky-tx);opacity:.75}
+.timer-bar.run i{background:rgba(255,255,255,.35)}
+.timer-bar.finish{background:var(--ok);border-color:var(--ok);color:#06210f;justify-content:center}
+.timer-bar.finish b{font-size:18px}
+.timer-bar.finish small{color:#0b3a1d;margin-left:auto}
+.timer-bar.finish svg{stroke-width:2.6}
+.ov.tmr{background:#000;opacity:0;transition:opacity .2s}
+.ov.tmr.open{opacity:1}
+.tmr-b{height:100%;max-width:560px;margin:0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:calc(env(safe-area-inset-top) + 20px) 20px calc(30px + env(safe-area-inset-bottom));position:relative}
+.tmr-x{position:absolute;left:12px;top:calc(env(safe-area-inset-top) + 12px)}
+.tmr-ring{position:relative;width:min(78vw,340px);aspect-ratio:1}
+.tmr-ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.tmr-ring circle{fill:none;stroke-width:12}
+.tmr-ring .bg{stroke:#1d2a38}
+.tmr-ring .fg{stroke:var(--sky);stroke-linecap:round;transition:stroke-dashoffset .5s linear}
+.tmr-c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.tmr-c b{font-size:min(19vw,84px);font-weight:750;font-variant-numeric:tabular-nums;letter-spacing:-.03em;color:var(--sky)}
+.tmr-c span{color:var(--mu);font-size:15px}
+.ov.tmr.over .tmr-c b,.ov.tmr.over .tmr-c span{color:var(--ok)}
+.tmr-adj{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;width:100%}
+.tmr-adj .btn{min-height:56px;font-size:18px;background:#14202c;border-color:#24384c;color:var(--sky)}
+.tmr-skip{width:100%;min-height:54px;background:var(--sky);border-color:var(--sky);color:var(--sky-tx);font-size:16px}
 </style>
 </head>
 <body data-mode="gym">
 <div id="app"></div>
+<button class="active-bar" id="activeBar" hidden></button>
 <nav class="nav"><div class="nav-in" id="nav"></div></nav>
 <div class="toast" id="toast"></div>
 <script src="foods.js"></script>

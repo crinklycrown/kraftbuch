@@ -252,7 +252,6 @@ function renderTraining() {
       const d = addDays(mon, i), k = keyOf(d), n = workoutsOn(k).length;
       return `<button class="wd ${k === tk ? 'today' : ''}" data-act="wday" data-k="${k}"><span>${WD[i]}</span><b>${d.getDate()}</b><i class="${n ? 'on' : ''}"></i></button>`;
     }).join('')}</nav>
-    ${S.active ? `<button class="active-b" data-act="resume"><span class="pulse"></span><span class="active-main"><b>${esc(S.active.title)}</b><small>läuft seit <span data-elapsed>${fmtDur(Date.now() - S.active.start)}</span></small></span><span class="btn primary sm">Fortsetzen</span></button>` : ''}
     ${planHtml}
     <div class="links">
       <button class="row" data-act="history">${I.list}<span class="row-main"><b>Verlauf</b><small>${S.workouts.length} Trainings</small></span>${I.chevR}</button>
@@ -450,13 +449,32 @@ function setTimer(sec) {
 }
 function updateTimerBar() {
   const bar = wkPanel && $('.timer-bar', wkPanel.content); if (!bar) return;
-  const t = S.active && S.active.timer;
+  const A = S.active, t = A && A.timer;
+  const allDone = A && A.items.length && A.items.every(it => it.sets.length && it.sets.every(s => s.done));
+  const left = t ? (t.end - Date.now()) / 1000 : 0;
+  if (allDone) {
+    bar.dataset.a = 'finish';
+    bar.className = 'timer-bar finish';
+    bar.innerHTML = `${I.check}<b>Workout beenden</b>${t && left > 0 ? `<small>Pause ${fmtClock(left)}</small>` : ''}`;
+    return;
+  }
+  bar.dataset.a = 'timer';
   if (!t) { bar.className = 'timer-bar idle'; bar.innerHTML = `${I.timer}<span>Pause startet nach dem Abhaken</span>`; return; }
-  const left = (t.end - Date.now()) / 1000;
   if (left <= 0) { bar.className = 'timer-bar over'; bar.innerHTML = `${I.check}<span><b>Pause vorbei</b> – nächster Satz</span><small>${fmtClock(-left)} drüber</small>`; return; }
   const frac = Math.max(0, Math.min(1, left / t.dur));
   bar.className = 'timer-bar run';
-  bar.innerHTML = `<i style="width:${frac * 100}%"></i>${I.timer}<b>${fmtClock(left)}</b><small>Pause · antippen zum Ändern</small>`;
+  bar.innerHTML = `<i style="width:${frac * 100}%"></i>${I.timer}<b>${fmtClock(left)}</b><small>Pause · antippen</small>`;
+}
+function renderActiveBar() {
+  const el = $('#activeBar'); if (!el) return;
+  const A = S.active;
+  document.body.classList.toggle('has-active', !!A);
+  if (!A) { el.hidden = true; return; }
+  el.hidden = false;
+  const t = A.timer, left = t ? (t.end - Date.now()) / 1000 : 0;
+  const done = A.items.reduce((n, it) => n + it.sets.filter(s => s.done).length, 0);
+  const all = A.items.reduce((n, it) => n + it.sets.length, 0);
+  el.innerHTML = `<span class="pulse"></span><span class="ab-main"><b>${esc(A.title)}</b><small>${fmtDur(Date.now() - A.start)} · ${done}/${all} Sätze</small></span>${t && left > 0 ? `<span class="ab-timer">${I.timer}${fmtClock(left)}</span>` : ''}<span class="ab-go">${I.chevR}</span>`;
 }
 function gymTick() {
   const A = S.active; if (!A) return;
@@ -469,7 +487,53 @@ function gymTick() {
       if (S.settings.gym.sound) beep();
     }
   }
-  updateTimerBar();
+  updateTimerBar(); updateTimerOverlay(); renderActiveBar();
+}
+function adjustTimer(delta) {
+  const A = S.active; if (!A || !A.timer) return;
+  const t = A.timer, now = Date.now();
+  t.end = Math.max(now, (t.end < now ? now : t.end) + delta * 1000);
+  t.dur = Math.max(5, t.dur + delta, Math.ceil((t.end - now) / 1000));
+  t.rang = t.end <= now;
+  saveActive(); gymTick();
+}
+let tmrOv = null;
+function openTimer(defaultRest) {
+  const A = S.active; if (!A) return;
+  if (!A.timer) setTimer(defaultRest);
+  const el = document.createElement('div');
+  el.className = 'ov tmr';
+  el.innerHTML = `<div class="tmr-b">
+      <button class="icon-btn tmr-x" data-t="close" aria-label="Schließen">${I.down}</button>
+      <div class="tmr-ring"><svg viewBox="0 0 200 200"><circle class="bg" cx="100" cy="100" r="88"/><circle class="fg" cx="100" cy="100" r="88"/></svg>
+        <div class="tmr-c"><b data-tmr-time>0:00</b><span data-tmr-sub>Pause</span></div></div>
+      <div class="tmr-adj">${[-30, -15, 15, 30].map(d => `<button class="btn" data-t="${d}">${d > 0 ? '+' : '−'}${Math.abs(d)}</button>`).join('')}</div>
+      <button class="btn tmr-skip" data-t="skip">Pause überspringen</button>
+    </div>`;
+  el.addEventListener('click', e => {
+    const b = e.target.closest('[data-t]'); if (!b) return;
+    const t = b.dataset.t;
+    if (t === 'close') closeOverlays(1);
+    else if (t === 'skip') { if (S.active) { S.active.timer = null; saveActive(); } closeOverlays(1); }
+    else adjustTimer(+t);
+  });
+  el.addEventListener('closed', () => { tmrOv = null; });
+  tmrOv = el;
+  pushOverlay(el);
+  updateTimerOverlay();
+}
+function updateTimerOverlay() {
+  if (!tmrOv) return;
+  const t = S.active && S.active.timer;
+  const fg = $('.fg', tmrOv), C = 2 * Math.PI * 88;
+  if (!t) { closeOverlays(1); return; }
+  const left = (t.end - Date.now()) / 1000;
+  const frac = Math.max(0, Math.min(1, left / t.dur));
+  fg.style.strokeDasharray = C; fg.style.strokeDashoffset = C * (1 - frac);
+  $('[data-tmr-time]', tmrOv).textContent = fmtClock(Math.max(0, left));
+  $('[data-tmr-sub]', tmrOv).textContent = left > 0 ? `von ${fmtClock(t.dur)}` : 'Pause vorbei!';
+  tmrOv.classList.toggle('over', left <= 0);
+  if (left <= -3 && !tmrOv.dataset.closing) { tmrOv.dataset.closing = 1; closeOverlays(1); }
 }
 let audioCtx;
 function beep() {
@@ -558,19 +622,7 @@ async function workoutClick(e, render) {
       const idx = it.sets.map(s => s.done).lastIndexOf(false);
       it.sets.splice(idx >= 0 ? idx : it.sets.length - 1, 1); save(); break;
     }
-    case 'timer': {
-      const t = A.timer;
-      const choice = await menu('Pause', [
-        { label: '+15 Sekunden', value: 15 }, { label: '+30 Sekunden', value: 30 }, { label: '−15 Sekunden', value: -15 },
-        { label: 'Neu starten', sub: fmtClock(ex ? ex.rest : 90), value: 'restart' }, { label: 'Pause beenden', value: 'stop' },
-      ]);
-      if (choice === null) return;
-      if (choice === 'stop') A.timer = null;
-      else if (choice === 'restart') { setTimer(ex ? ex.rest : 90); return; }
-      else if (t) { const base = Math.max(Date.now(), t.end); t.end = (t.end < Date.now() ? Date.now() : t.end) + choice * 1000; t.dur = Math.max(t.dur + choice, 5); t.rang = t.end <= Date.now(); if (base) { } }
-      else setTimer(Math.max(15, choice));
-      saveActive(); updateTimerBar(); break;
-    }
+    case 'timer': openTimer(ex ? ex.rest : 90); break;
     case 'variant': {
       const items = ex.variants.map(x => ({ label: x.name, sub: `${(EQUIP[x.equip] || EQUIP.sonstiges).l} · ${LOADS[x.load].l}${x.id === v.id ? ' · aktuell' : ''}`, value: x.id, icon: (EQUIP[x.equip] || EQUIP.sonstiges).icon }));
       items.push({ label: 'Neue Variante…', value: '_new', icon: I.plus }, { label: 'Andere Übung (Ersatz)…', value: '_other', icon: I.swap });
