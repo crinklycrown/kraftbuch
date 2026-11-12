@@ -177,7 +177,7 @@ function muscleCardHtml() {
   const max = Math.max(20, ...rows.map(r => r[1]));
   return `<section class="card ms">
     <div class="ms-h"><b>Sätze pro Muskel</b><span class="spacer"></span><button class="icon-btn sm" data-act="msPrev" aria-label="Woche zurück">${I.chevL}</button><span class="ms-w">${msOffset === 0 ? 'Diese Woche' : msOffset === -1 ? 'Letzte Woche' : 'KW ' + isoWeek(mon)}</span><button class="icon-btn sm" data-act="msNext" aria-label="Woche vor" ${msOffset >= 0 ? 'disabled' : ''}>${I.chevR}</button></div>
-    ${rows.length ? `<div class="ms-rows">${rows.map(([m, n]) => `<div class="ms-r"><span class="ms-n">${esc(m)}</span><span class="ms-bar"><i style="width:${n / max * 100}%;background:${muscleColor(m)}"></i><em style="left:${10 / max * 100}%"></em></span><b>${f1(n)}</b></div>`).join('')}</div>
+    ${rows.length ? `<div class="ms-rows">${rows.map(([m, n]) => `<div class="ms-r"><span class="ms-n">${esc(m)}</span><span class="ms-bar"><i class="${n >= 10 ? 'hit' : ''}" style="width:${n / max * 100}%"></i><em style="left:${10 / max * 100}%"></em></span><b>${f1(n)}</b></div>`).join('')}</div>
     <p class="ms-leg">Hauptmuskel zählt 1, Hilfsmuskel ½. Strich = 10 Sätze (häufiger Richtwert für Muskelaufbau: 10–20 pro Woche).</p>` : '<p class="muted">In dieser Woche noch keine Sätze.</p>'}
   </section>`;
 }
@@ -528,8 +528,9 @@ function openWorkout() {
       </header>
       <div class="strip">${A.items.map((x, i) => {
         const ex = exById(x.exId), v = varOf(ex, x.varId);
-        const allDone = x.sets.length && x.sets.every(s => s.done);
-        return `<button class="strip-t ${i === A.cur ? 'on' : ''} ${allDone ? 'done' : ''}" data-a="goto" data-i="${i}">${tileHtml(ex, v)}${allDone ? `<span class="strip-ck">${I.check}</span>` : ''}</button>`;
+        const nd = x.sets.filter(s => s.done).length, allDone = x.sets.length && nd === x.sets.length;
+        const tile = tileHtml(ex, v).replace('</span>', !allDone && nd ? `<span class="strip-prog"><i style="width:${nd / x.sets.length * 100}%"></i></span></span>` : '</span>');
+        return `<button class="strip-t ${i === A.cur ? 'on' : ''} ${allDone ? 'done' : ''}" data-a="goto" data-i="${i}" aria-label="${esc(ex.name)}${allDone ? ', erledigt' : nd ? `, ${nd} von ${x.sets.length} Sätzen` : ''}">${tile}${allDone ? `<span class="strip-ck">${I.check}</span>` : ''}</button>`;
       }).join('')}<button class="strip-t add" data-a="addEx" aria-label="Übung hinzufügen">${I.plus}</button></div>
       <div class="wk-body">${body}</div>
       <div class="timer-bar" data-a="timer"></div>`;
@@ -558,7 +559,7 @@ async function notifyRestOver() {
   const next = it && it.sets.findIndex(s => !s.done);
   try {
     const reg = await navigator.serviceWorker.ready;
-    await reg.showNotification('Pause vorbei 💪', { body: ex ? `${ex.name}${next >= 0 ? ` – Satz ${next + 1}` : ''}` : 'Weiter geht’s', tag: 'rest', renotify: true, vibrate: [400, 150, 400, 150, 400], icon: 'icon-192.png', badge: 'icon-192.png', requireInteraction: false });
+    await reg.showNotification('Pause vorbei', { body: ex ? `${ex.name}${next >= 0 ? ` – Satz ${next + 1}` : ''}` : 'Weiter geht’s', tag: 'rest', renotify: true, vibrate: [400, 150, 400, 150, 400], icon: 'icon-192.png', badge: 'icon-192.png', requireInteraction: false });
   } catch { }
 }
 function updateTimerBar() {
@@ -645,7 +646,7 @@ function updateTimerOverlay() {
   const frac = Math.max(0, Math.min(1, left / t.dur));
   fg.style.strokeDasharray = C; fg.style.strokeDashoffset = C * (1 - frac);
   $('[data-tmr-time]', tmrOv).textContent = fmtClock(Math.max(0, left));
-  $('[data-tmr-sub]', tmrOv).textContent = left > 0 ? `von ${fmtClock(t.dur)}` : 'Pause vorbei!';
+  $('[data-tmr-sub]', tmrOv).textContent = left > 0 ? `von ${fmtClock(t.dur)}` : 'Pause vorbei';
   tmrOv.classList.toggle('over', left <= 0);
   if (left <= -3 && !tmrOv.dataset.closing) { tmrOv.dataset.closing = 1; closeOverlays(1); }
 }
@@ -1290,7 +1291,7 @@ function setGain(ex, v, it, i, s) {
   const best = Math.max(0, ...prevAll.map(x => bestE1(v, x.it.sets)));
   const todayBest = Math.max(0, ...it.sets.filter((x, j) => x.done && j !== i).map(x => e1rm(v, { w: num(x.w), r: num(x.r) })));
   const e = e1rm(v, s);
-  if (best > 0 && e > best + 0.01 && e > todayBest + 0.01) return { pr: true, text: 'Neuer Rekord!' };
+  if (best > 0 && e > best + 0.01 && e > todayBest + 0.01) return { pr: true, text: 'Neuer Rekord' };
   if (!ls) return null;
   if (s.w > +ls.w + 1e-6) return { text: `+${f2(s.w - ls.w)} kg` };
   if (Math.abs(s.w - ls.w) < 1e-6 && s.r > ls.r) return { text: `+${s.r - ls.r} Wdh` };
@@ -1407,6 +1408,6 @@ function openWeekReview(mon) {
 function muscleCardHtmlFor(mon) {
   const rows = muscleSets(mon); if (!rows.length) return '';
   const max = Math.max(20, ...rows.map(r => r[1]));
-  return `<div class="list-label">Sätze pro Muskel</div><section class="card ms" style="margin-top:0"><div class="ms-rows">${rows.map(([m, n]) => `<div class="ms-r"><span class="ms-n">${esc(m)}</span><span class="ms-bar"><i style="width:${n / max * 100}%;background:${muscleColor(m)}"></i><em style="left:${10 / max * 100}%"></em></span><b>${f1(n)}</b></div>`).join('')}</div></section>`;
+  return `<div class="list-label">Sätze pro Muskel</div><section class="card ms" style="margin-top:0"><div class="ms-rows">${rows.map(([m, n]) => `<div class="ms-r"><span class="ms-n">${esc(m)}</span><span class="ms-bar"><i class="${n >= 10 ? 'hit' : ''}" style="width:${n / max * 100}%"></i><em style="left:${10 / max * 100}%"></em></span><b>${f1(n)}</b></div>`).join('')}</div></section>`;
 }
 function openExportWeek(mon) { openExport({ dk: keyOf(addDays(mon, 6) > new Date() ? new Date() : addDays(mon, 6)), what: 'both', range: 'week' }); }

@@ -603,6 +603,129 @@ body.has-active #app{padding-bottom:calc(170px + env(safe-area-inset-bottom))}
 .rv-t span{font-size:11.5px;color:var(--mu)}
 .rv-t.good b{color:var(--ok)}.rv-t.gold b{color:#ffc76b}.rv-t.warn b{color:var(--f)}
 .list-label svg{width:13px;height:13px;vertical-align:-2px;margin-right:3px}
+
+/* ===== v1.6 Gestaltung (ruhig, eine Akzentfarbe) ===== */
+@font-face{font-family:Inter;src:url(fonts/inter-Regular.woff) format("woff");font-weight:400;font-display:swap}
+@font-face{font-family:Inter;src:url(fonts/inter-Medium.woff) format("woff");font-weight:500;font-display:swap}
+@font-face{font-family:Inter;src:url(fonts/inter-SemiBold.woff) format("woff");font-weight:600 800;font-display:swap}
+
+:root, body[data-mode=food], body[data-mode=gym], .ov.wk, .ov.wk * {
+  --bg:#141415; --s1:#1b1b1d; --s2:#242426; --s3:#2e2e31; --line:rgba(237,237,237,.08);
+  --tx:#ededed; --mu:#a1a1a6; --mu2:#85858b;
+  --ac:#7cc4ff; --ac-tx:#0b1b29; --ac-soft:rgba(124,196,255,.12);
+  --blue:#7cc4ff; --lime:#7cc4ff; --sky:#7cc4ff; --sky-tx:#0b1b29;
+  --ok:#4cc38a; --red:#e5484d;
+  --kcal:#7cc4ff; --p:#5fc2b0; --c:#8b9cf0; --f:#d9b25a;
+}
+html,body{background:var(--bg);font-family:Inter,system-ui,sans-serif;font-feature-settings:"tnum" 1,"cv11" 1}
+input,select{background:var(--s2);border-color:var(--line);border-radius:10px}
+
+/* Typo: weniger Gewicht, keine Versalien-Labels */
+.kw-num,.view-h h1,.ph h2,.plan-h h2,.wx-h h2,.sheet-h h2{font-weight:600!important;letter-spacing:-.01em}
+.kw-num{font-size:22px}.view-h h1{font-size:22px}.plan-h h2{font-size:18px;color:var(--tx)!important}
+.wx-h h2{font-size:22px;color:var(--tx)!important}
+.plan-week{color:var(--mu)!important;font-weight:500!important;font-size:14px!important}
+.list-label,.sec-h h3,.set-h,.lb-h,.ms-leg{text-transform:none!important;letter-spacing:0!important;font-size:13px!important;font-weight:500!important;color:var(--mu2)!important}
+.set-h{font-size:12px!important}
+b,.cell b,.ring-c b,.m-side b,.row-side b,.mac b,.nutbox b,.rv-t b,.sum-grid b,.timer-bar b,.tmr-c b,.np-val b,.np-it b,.np-k{font-weight:600!important}
+.cell b{font-size:18px}
+.m-main b,.pday-main b,.row-main b,.crea-main b{font-weight:500!important}
+
+/* Flächen: eine graue Rampe, Haarlinien statt Farbe */
+.card,.meal,.list,.links,.item,.set,.hist-i,.lastbox,.crea,.mac{background:var(--s1)!important;border:1px solid var(--line)!important;border-radius:14px!important}
+.set{border-radius:12px!important}
+.set.warm{background:transparent!important;border:1px dashed rgba(237,237,237,.12)!important}
+.set.cur{background:var(--s2)!important;box-shadow:inset 0 0 0 1px rgba(124,196,255,.55)!important}
+.set.done{background:var(--s1)!important}
+.set.done .tick{background:var(--ok)!important;color:#08210f!important}
+.set.warm.done .tick{background:var(--s3)!important;color:var(--tx)!important}
+.set.warm .sn{color:var(--mu2)!important}
+.cell{background:transparent!important}
+.tick{background:var(--s2)!important;border-radius:10px!important}
+.ov.wk .panel-b{background:var(--bg)!important}
+.panel-b,.sheet-b{background:var(--bg)!important}
+.sheet-b{background:#1b1b1d!important;border-top:1px solid var(--line)!important}
+
+/* Kacheln & Symbole neutral – Farbe nur, wo sie etwas bedeutet */
+.tile{background:var(--s2)!important;color:var(--mu)!important;border-radius:10px!important}
+.tile.sm{border-radius:8px!important}
+.m-ic{background:var(--s2)!important;color:var(--mu)!important;border-radius:12px!important}
+.pday-tiles{background:transparent!important;padding:0!important}
+.strip-t.on{border-color:var(--ac)!important}
+.strip-ck{background:var(--ok)!important;color:#08210f!important;border-color:var(--bg)!important}
+.mchip,.mchip.main{background:var(--s2)!important;color:var(--mu)!important;border-radius:8px!important}
+.mchip.main{color:var(--tx)!important}
+.dot{opacity:.9}
+.chart{--cc:var(--ac)!important}
+.chart .ar{opacity:.08!important}
+
+/* Formen: Radius nach Größe statt Pillen überall */
+.chip,.pill,.badge,.plate{border-radius:8px!important}
+.btn{border-radius:12px!important}
+.btn.primary{background:var(--ac)!important;border-color:var(--ac)!important;color:var(--ac-tx)!important}
+.pill{background:transparent!important;border:1px solid var(--line)!important}
+.pill.warn{color:var(--f)!important}
+.pill.ok{color:var(--ok)!important;border-color:rgba(76,195,138,.3)!important}
+.wd{background:transparent!important;border:1px solid var(--line)!important;border-radius:12px!important}
+.wd.sel{background:var(--ac)!important;color:var(--ac-tx)!important;border-color:var(--ac)!important}
+.wd i.on{background:var(--ac)!important}.wd.sel i.on{background:var(--ac-tx)!important}
+
+/* Moment Ernährung: Ring + Makros – einzige Stelle mit mehreren Farben */
+.ring .fg{stroke:var(--ac)!important}.ring .bg{stroke:var(--s2)!important}
+.mac b{color:var(--tx)!important}
+.mac.k b{color:var(--tx)!important}
+
+/* Hinweise ruhig */
+.hint{background:transparent!important;border:1px solid var(--line);color:var(--mu)!important}
+.hint.up{color:var(--ok)!important;border-color:rgba(76,195,138,.25)}
+.stag{border-color:var(--line)!important}
+.stag-h{color:var(--tx)!important}.stag-h svg{color:var(--f)}
+.deload-b{background:var(--s1)!important;color:var(--tx)!important;border-color:var(--line)!important}
+.review{background:var(--s1)!important;border-color:var(--line)!important}
+.review>svg{color:var(--f)!important}
+.bk{background:var(--s1)!important;border-color:var(--line)!important}.bk>svg{color:var(--ac)!important}
+.fixnote{background:var(--s1)!important;border:1px solid var(--line);color:var(--tx)!important}
+.fixnote svg{color:var(--ac)}
+.info{background:var(--s1)!important;border:1px solid var(--line)}
+
+/* Muskel-Diagramm: grau, Akzent erst ab Richtwert */
+.ms-bar{background:var(--s2)!important}
+.ms-bar i{background:#4b4b50!important}
+.ms-bar i.hit{background:var(--ac)!important}
+
+/* Creatin */
+.crea.done{background:var(--s1)!important;border-color:var(--line)!important}
+.crea.done .crea-ck{background:var(--ok)!important;border-color:var(--ok)!important;color:#08210f!important}
+.crea.done>svg{color:var(--mu2)!important}
+
+/* Rekord ohne Verlauf */
+.gain-badge.pr{background:#e3b25a!important;color:#2a1a00!important}
+.info.pr{color:var(--tx)!important}.info.pr svg{color:#e3b25a}
+
+/* Leisten */
+.active-bar{border-radius:14px!important;box-shadow:0 8px 24px rgba(0,0,0,.4)!important}
+.timer-bar{border-radius:14px!important}
+.timer-bar.idle{background:var(--s1)!important}
+.toast{background:var(--s3)!important;color:var(--tx)!important;border:1px solid var(--line)}
+.nav{background:rgba(20,20,21,.92)!important;border-top-color:var(--line)!important}
+.nav button.on.m-gym,.nav button.on.m-food{color:var(--ac)!important}
+
+/* Picker */
+.ov.np{background:var(--bg)!important}
+.np-it{background:var(--s1)!important;border-radius:14px!important}
+.np-it.on{background:var(--s3)!important}
+.np-k,.np-ok{background:var(--s2)!important;border-radius:12px!important}
+.np-ok{color:var(--ac)!important}
+.np-pad{background:#0f0f10!important;border-top-color:var(--line)!important}
+.np-tbtn{color:var(--ac)!important}
+
+/* Übungsleiste: erledigt vs. angefangen sofort erkennbar */
+.strip-t .tile{position:relative}
+.strip-t.done .tile{opacity:1!important;background:rgba(76,195,138,.16)!important;color:var(--ok)!important;box-shadow:inset 0 0 0 1.5px rgba(76,195,138,.55)}
+.strip-t.done.on{border-color:var(--ok)!important}
+.strip-prog{position:absolute;left:8px;right:8px;bottom:5px;height:3px;border-radius:2px;background:rgba(237,237,237,.12);overflow:hidden}
+.strip-prog i{display:block;height:100%;background:var(--ac);border-radius:2px}
+.set.cur .tick{background:var(--s3)!important}
 </style>
 </head>
 <body data-mode="gym">

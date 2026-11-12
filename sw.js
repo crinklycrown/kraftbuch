@@ -1,6 +1,6 @@
 // Kraftbuch – Service Worker (offline-Betrieb)
-const CACHE = 'kraftbuch-v6';
-const ASSETS = ['./', './index.html', './app.js', './foods.js', './core.js', './food.js', './gym.js', './data.js', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
+const CACHE = 'kraftbuch-v7';
+const ASSETS = ['./', './index.html', './app.js', './foods.js', './core.js', './food.js', './gym.js', './data.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './fonts/inter-Regular.woff', './fonts/inter-Medium.woff', './fonts/inter-SemiBold.woff'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
