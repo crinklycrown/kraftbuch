@@ -372,7 +372,7 @@ function openGrams({ food, g = null, confirmLabel = 'Hinzufügen', onConfirm, on
   sh.content.innerHTML = `
     <div class="info">${per100Line(v)}${food.piece ? `<br>1 ${esc(food.pieceLabel || 'Stück')} ≈ ${f0(food.piece)} g` : ''}</div>
     ${!v ? `<div class="info warn">Ohne Nährwerte – wird beim Auswerten anhand Menge und Foto geschätzt.${onAddValues ? ' <button class="chip" data-act="addValues" style="margin-top:8px;display:inline-block">Nährwerte nachtragen</button>' : ''}</div>` : ''}
-    <div class="inp-g inp-big"><input inputmode="decimal" value="${f1(val)}" aria-label="Menge in Gramm"><em>g</em></div>
+    <div class="inp-g inp-big"><input inputmode="decimal" value="${fIn(val)}" aria-label="Menge in Gramm"><em>g</em></div>
     <div class="chips">${quick.map(([x, l]) => `<button class="chip" data-g="${x}">${esc(l)}</button>`).join('')}</div>
     <div class="nb"></div>
     <div class="sheet-actions">${onDelete ? `<button class="btn danger" data-act="del">${I.trash}</button>` : ''}<button class="btn primary" data-act="ok">${confirmLabel}</button></div>`;
@@ -401,7 +401,7 @@ function ingRowsHtml(ings) {
   if (!ings.length) return '<div class="empty" style="padding:16px">Noch keine Zutaten.</div>';
   return ings.map((g, i) => `<div class="ing">
     <span class="ing-n">${esc(g.name)}<small id="ik${i}"></small></span>
-    <span class="inp-g"><input inputmode="decimal" data-ing="${i}" value="${f1(num(g.g) || 0)}"><em>g</em></span>
+    <span class="inp-g"><input inputmode="decimal" data-ing="${i}" value="${fIn(num(g.g) || 0)}"><em>g</em></span>
     <button class="icon-btn sm" data-act="rmIng" data-i="${i}" aria-label="Entfernen">${I.x}</button></div>`).join('');
 }
 function ingKcalUpdate(root, ings) {
@@ -438,10 +438,10 @@ function openDishEntry({ dk, mk, entry, isNew }) {
       <div class="seg">${[['portion', 'Portion'], ['eaten', 'Gegessen'], ['left', 'Rest übrig']].map(([m, l]) => `<button class="${e.mode === m ? 'on' : ''}" data-act="mode" data-m="${m}">${l}</button>`).join('')}</div>
       ${e.mode === 'portion'
         ? `<div class="chips" style="margin-top:0">${FRAC.map(([v, l]) => `<button class="chip ${Math.abs(v - (num(e.factor) || 0)) < 0.01 ? 'on' : ''}" data-act="fac" data-v="${v}">${l}</button>`).join('')}</div>
-           <label class="field"><span>Oder eigener Faktor</span><input data-f="factor" inputmode="decimal" value="${f1(num(e.factor) || 0)}"></label>`
+           <label class="field"><span>Oder eigener Faktor</span><input data-f="factor" inputmode="decimal" value="${fIn(num(e.factor) || 0)}"></label>`
         : `<div class="grid2">
              <label class="field"><span>${e.mode === 'eaten' ? 'Gegessen' : 'Übrig geblieben'}</span><span class="inp-g"><input data-f="amt" inputmode="decimal" value="${esc(e.amt)}" placeholder="0"><em>g</em></span></label>
-             <label class="field"><span>Ganzes Gericht</span><span class="inp-g"><input data-f="total" inputmode="decimal" value="${f1(tot)}"><em>g</em></span></label>
+             <label class="field"><span>Ganzes Gericht</span><span class="inp-g"><input data-f="total" inputmode="decimal" value="${fIn(tot)}"><em>g</em></span></label>
            </div>
            <p class="muted" style="margin:-6px 0 12px">Am besten das Gewicht nach dem Kochen eintragen (Topf/Schüssel abgezogen) – Summe der Zutaten: ${f0(sumG(e.ingredients))} g.</p>`}
       <div class="nb"></div>

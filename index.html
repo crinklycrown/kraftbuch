@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0c0e12">
+<meta name="theme-color" content="#141415">
+<meta name="color-scheme" content="dark">
+<meta name="darkreader-lock">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Kraftbuch</title>
 <link rel="manifest" href="manifest.webmanifest">
@@ -726,6 +728,15 @@ b,.cell b,.ring-c b,.m-side b,.row-side b,.mac b,.nutbox b,.rv-t b,.sum-grid b,.
 .strip-prog{position:absolute;left:8px;right:8px;bottom:5px;height:3px;border-radius:2px;background:rgba(237,237,237,.12);overflow:hidden}
 .strip-prog i{display:block;height:100%;background:var(--ac);border-radius:2px}
 .set.cur .tick{background:var(--s3)!important}
+
+/* v1.6.1: Browser-Dunkelmodus (z. B. Samsung Internet) nicht nachfärben lassen; Balken & heute sichtbar */
+:root{color-scheme:dark}
+.ms-bar{height:8px!important;background:#2e2e31!important}
+.ms-bar i{background:#76767e!important}
+.ms-bar i.hit{background:var(--ac)!important}
+.ms-bar em{background:var(--tx)!important;opacity:.45!important}
+.wd.today:not(.sel){background:var(--ac-soft)!important;border-color:var(--ac)!important}
+.wd.today:not(.sel) b,.wd.today:not(.sel) span{color:var(--ac)!important}
 </style>
 </head>
 <body data-mode="gym">

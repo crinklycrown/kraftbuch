@@ -47,6 +47,10 @@ async function init() {
       else if (k === 'active') S.active = v;
       else if (k in S) S[k] = v;
     }
+    // Reparatur: Zielwerte, die durch den alten Tausenderpunkt-Fehler zu klein gespeichert wurden (3.000 → 3)
+    let fixed = false;
+    for (const t of ['train', 'rest']) { const g = S.settings.goals[t]; if (g && g.kcal > 0 && g.kcal < 50) { g.kcal = Math.round(g.kcal * 1000); fixed = true; } }
+    if (fixed) { saveSettings(); setTimeout(() => toast('Kalorienziel repariert – bitte kurz in den Einstellungen prüfen'), 900); }
     if (!S.settings.firstUse) { S.settings.firstUse = Date.now(); saveSettings(); }
     // Futterbuch beim ersten Start automatisch übernehmen
     if (!S.settings.migratedFutter) {

@@ -2,7 +2,7 @@
 /* =========================================================
    Kraftbuch – Kern: Helfer, Speicher, Overlays, Picker
    ========================================================= */
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.6.1';
 
 /* ---------- Helfer ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -10,7 +10,17 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const clone = o => JSON.parse(JSON.stringify(o));
-const num = v => (v === null || v === undefined || v === '') ? NaN : parseFloat(String(v).replace(',', '.'));
+// Zahlen in deutscher Schreibweise lesen: "3.000" = 3000, "2,5" = 2.5, "1.250,5" = 1250.5, "2.5" = 2.5
+const num = v => {
+  if (v === null || v === undefined || v === '') return NaN;
+  if (typeof v === 'number') return v;
+  let s = String(v).trim().replace(/\s/g, '');
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+  return parseFloat(s);
+};
+// Wert für Eingabefelder: ohne Tausenderpunkt, Komma als Dezimalzeichen
+const fIn = n => (n === '' || n == null || isNaN(n)) ? '' : String(Math.round(n * 100) / 100).replace('.', ',');
 const f0 = n => Math.round(n || 0).toLocaleString('de-DE');
 const f1 = n => (Math.round((n || 0) * 10) / 10).toLocaleString('de-DE');
 const f2 = n => (Math.round((n || 0) * 100) / 100).toLocaleString('de-DE');
@@ -273,11 +283,12 @@ function pickNumber({ title, value, options, unit = '', decimals = true, sub = n
   return new Promise(resolve => {
     let result = null;
     const fmt = n => decimals ? f2(n) : String(Math.round(n));
+    const fmtIn = n => decimals ? fIn(n) : String(Math.round(n));
     let cur = num(value);
     const opts = options.slice();
     if (!isNaN(cur) && !opts.some(o => Math.abs(o.v - cur) < 1e-6)) opts.push({ v: cur });
     opts.sort((x, y) => x.v - y.v);
-    let str = isNaN(cur) ? '' : fmt(cur);
+    let str = isNaN(cur) ? '' : fmtIn(cur);
     let fresh = true, ignoreUntil = 0;
     const el = document.createElement('div');
     el.className = 'ov np';
@@ -311,13 +322,13 @@ function pickNumber({ title, value, options, unit = '', decimals = true, sub = n
         const mid = list.scrollTop + list.clientHeight / 2;
         let best = null, bd = Infinity;
         for (const b of $$('.np-it', list)) { const d = Math.abs(b.offsetTop + b.offsetHeight / 2 - mid); if (d < bd) { bd = d; best = b; } }
-        if (best) { str = fmt(+best.dataset.v); fresh = true; update(); }
+        if (best) { str = fmtIn(+best.dataset.v); fresh = true; update(); }
       }, 110);
     });
     const ok = () => { const n = num(str === '' ? '0' : str); if (isNaN(n)) return; result = n; closeOverlays(1); };
     el.addEventListener('click', e => {
       const it = e.target.closest('.np-it');
-      if (it) { const v = +it.dataset.v; if (it.classList.contains('on')) { ok(); return; } str = fmt(v); fresh = true; update(); scrollTo(v, true); return; }
+      if (it) { const v = +it.dataset.v; if (it.classList.contains('on')) { ok(); return; } str = fmtIn(v); fresh = true; update(); scrollTo(v, true); return; }
       const k = e.target.closest('[data-k]');
       if (k) {
         const key = k.dataset.k;

@@ -50,7 +50,7 @@ async function openSettings() {
   try { const e = await navigator.storage.estimate(); est = `Belegter Speicher: ${f1(e.usage / 1048576)} MB · `; } catch { }
   const render = () => {
     const G = S.settings.goals, gs = S.settings.gym;
-    const fld = (t, k, l, u) => `<label class="field"><span>${l}</span><span class="inp-g"><input data-g="${t}.${k}" inputmode="decimal" value="${f1(G[t][k])}"><em>${u}</em></span></label>`;
+    const fld = (t, k, l, u) => `<label class="field"><span>${l}</span><span class="inp-g"><input data-g="${t}.${k}" inputmode="decimal" value="${fIn(G[t][k])}"><em>${u}</em></span></label>`;
     const tog = (k, l, s) => `<button class="row" data-t="${k}"><span class="row-main"><b>${l}</b>${s ? `<small>${s}</small>` : ''}</span><span class="switch ${gs[k] ? 'on' : ''}"><i></i></span></button>`;
     sh.content.innerHTML = `
       <div class="sec-h" style="margin-top:4px"><h3>${I.dumbbell} Ziele Trainingstag</h3></div>
